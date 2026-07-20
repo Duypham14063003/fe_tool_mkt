@@ -54,3 +54,13 @@ export function logout() {
         store.removeItem(USER_KEY);
     }
 }
+
+/**
+ * Requests a password reset email via the backend.
+ * Backend proxies to Odoo's /web/reset_password endpoint.
+ * Odoo then sends a reset link to the user's registered email.
+ * Throws ApiError with a Vietnamese message on failure.
+ */
+export async function forgotPassword(email) {
+    return apiPost("/auth/forgot-password", { email });
+}
