@@ -237,9 +237,9 @@ export default function Login({ onLoginSuccess }) {
                             <div className="login-brand-sub">INTERNAL DATABASE</div>
                         </div>
 
-                        <div className="odoo-badge">
-                            <span className="odoo-dot"></span> Xác thực qua Odoo
-                        </div>
+                        {/*<div className="odoo-badge">*/}
+                        {/*    <span className="odoo-dot"></span> Xác thực qua Odoo*/}
+                        {/*</div>*/}
 
                         <form className="login-form" noValidate onSubmit={handleSubmit}>
                             <div className="login-error" hidden={!error}>

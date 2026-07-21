@@ -1,7 +1,7 @@
 /**
  * exportUtils.js
- * Chức năng xuất dữ liệu thống kê ra file Excel (.xlsx) hoặc PDF.
- * Sử dụng: SheetJS (xlsx) cho Excel, jsPDF + AutoTable cho PDF.
+ * Chức năng xuất dữ liệu thống kê Facebook & TikTok ra file Excel (.xlsx) hoặc PDF.
+ * Khớp 100% định dạng, tiêu đề cột, màu sắc bảng và hỗ trợ tiếng Việt đầy đủ.
  */
 
 import * as XLSX from "xlsx";
@@ -11,20 +11,20 @@ import autoTable from "jspdf-autotable";
 const FB_COLS = [
     { key: "stt",              label: "STT" },
     { key: "date",             label: "Ngày" },
-    { key: "caption",          label: "Nội dung" },
+    { key: "caption",          label: "Caption" },
     { key: "views",            label: "Lượt xem" },
-    { key: "reach",            label: "Tiếp cận" },
-    { key: "likes",            label: "Thích" },
+    { key: "reach",            label: "Người xem" },
+    { key: "likes",            label: "Like" },
     { key: "comments",         label: "Bình luận" },
     { key: "shares",           label: "Chia sẻ" },
-    { key: "saves",            label: "Lưu" },
-    { key: "total_time",       label: "Tổng TG xem" },
-    { key: "avg_time",         label: "TG xem TB" },
-    { key: "watch_through",    label: "Xem hết %" },
-    { key: "new_followers",    label: "Theo dõi mới" },
-    { key: "traffic_source",   label: "Nguồn traffic" },
+    { key: "saves",            label: "Lưu video" },
+    { key: "total_time",       label: "Tổng thời gian phát" },
+    { key: "avg_time",         label: "Thời gian xem TB" },
+    { key: "watch_through",    label: "Tỷ lệ xem hết" },
+    { key: "new_followers",    label: "Follow mới" },
+    { key: "traffic_source",   label: "Nguồn chính" },
     { key: "new_viewers",      label: "Người xem mới" },
-    { key: "returning_viewers",label: "Người xem cũ" },
+    { key: "returning_viewers",label: "Người xem quay lại" },
     { key: "male",             label: "Nam" },
     { key: "female",           label: "Nữ" },
     { key: "age_group",        label: "Độ tuổi chính" },
@@ -33,135 +33,299 @@ const FB_COLS = [
 
 const TT_COLS = [
     { key: "stt",        label: "STT" },
-    { key: "date",       label: "Ngày" },
+    { key: "date",       label: "Ngày đăng" },
     { key: "type",       label: "Loại" },
-    { key: "caption",    label: "Nội dung" },
-    { key: "reach",      label: "Tiếp cận" },
+    { key: "caption",    label: "Caption" },
+    { key: "reach",      label: "Reach" },
     { key: "views",      label: "Lượt xem" },
     { key: "engagement", label: "Tương tác" },
-    { key: "view_3s",    label: "Xem 3 giây" },
-    { key: "view_1m",    label: "Xem 1 phút" },
+    { key: "view_3s",    label: "Xem từ 3s" },
+    { key: "view_1m",    label: "Xem từ 1 phút" },
 ];
 
-function getSheet(platform, rows, totals) {
-    const cols = platform === "facebook" ? FB_COLS : TT_COLS;
-    const header = cols.map(c => c.label);
-    const data = rows.map(row => cols.map(c => row[c.key] ?? ""));
-    let totalsRow = null;
-    if (totals) {
-        totalsRow = cols.map(c => {
-            if (c.key === "stt") return "TỔNG CHUNG";
-            return totals[c.key] ?? "--";
-        });
-    }
-
-    return { cols, header, data, totalsRow };
+function removeVietnameseTones(str) {
+    if (typeof str !== "string") return str;
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D");
 }
-export function exportToExcel({ fbRows, fbTotals, ttRows, ttTotals, includeFb, includeTiktok }) {
+
+async function ensureVietnameseFont(doc) {
+    try {
+        const [regRes, boldRes] = await Promise.all([
+            fetch("https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/roboto/Roboto-Regular.ttf"),
+            fetch("https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/roboto/Roboto-Bold.ttf")
+        ]);
+        if (regRes.ok && boldRes.ok) {
+            const [regBuf, boldBuf] = await Promise.all([
+                regRes.arrayBuffer(),
+                boldRes.arrayBuffer()
+            ]);
+            const arrayBufferToBase64 = (buffer) => {
+                let binary = "";
+                const bytes = new Uint8Array(buffer);
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            };
+
+            doc.addFileToVFS("Roboto-Regular.ttf", arrayBufferToBase64(regBuf));
+            doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+
+            doc.addFileToVFS("Roboto-Bold.ttf", arrayBufferToBase64(boldBuf));
+            doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+
+            doc.setFont("Roboto");
+            return "Roboto";
+        }
+    } catch (err) {
+        console.warn("Khong the tải Roboto font cho PDF, dung font mặc định helvetica", err);
+    }
+    doc.setFont("helvetica");
+    return "helvetica";
+}
+
+export function exportToExcel({ fbRows = [], fbTotals = null, ttRows = [], ttTotals = null, includeFb = true, includeTiktok = true }) {
     const wb = XLSX.utils.book_new();
+
     if (includeFb) {
-        const { header, data, totalsRow } = getSheet("facebook", fbRows, fbTotals);
+        const header = FB_COLS.map(c => c.label);
+        const data = fbRows.map(row => FB_COLS.map(c => row[c.key] ?? ""));
+        const totalsRow = fbTotals ? [
+            "TỔNG",
+            fbTotals.videos || "14 video",
+            "--",
+            fbTotals.views || "",
+            fbTotals.reach || "",
+            fbTotals.likes || "",
+            fbTotals.comments || "",
+            fbTotals.shares || "",
+            fbTotals.saves || "",
+            fbTotals.total_time || "",
+            fbTotals.avg_time || "--",
+            fbTotals.watch_through || "--",
+            fbTotals.new_followers || "",
+            fbTotals.traffic_source || "--",
+            fbTotals.new_viewers || "--",
+            fbTotals.returning_viewers || "--",
+            fbTotals.male || "--",
+            fbTotals.female || "--",
+            fbTotals.age_group || "--",
+            fbTotals.region || "--"
+        ] : null;
+
         const sheetData = [header, ...data];
         if (totalsRow) sheetData.push(totalsRow);
+
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [
-            { wch: 5 }, { wch: 8 }, { wch: 22 }, { wch: 10 }, { wch: 10 },
-            { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 14 },
-            { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
-            { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 22 }, { wch: 18 },
+            { wch: 6 }, { wch: 10 }, { wch: 25 }, { wch: 10 }, { wch: 12 },
+            { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 18 },
+            { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 16 },
+            { wch: 18 }, { wch: 8 }, { wch: 8 }, { wch: 24 }, { wch: 20 },
         ];
         XLSX.utils.book_append_sheet(wb, ws, "Facebook");
     }
+
     if (includeTiktok) {
-        const { header, data, totalsRow } = getSheet("tiktok", ttRows, ttTotals);
+        const header = TT_COLS.map(c => c.label);
+        const data = ttRows.map(row => TT_COLS.map(c => row[c.key] ?? ""));
+        const totalsRow = ttTotals ? [
+            ttTotals.videos || "TỔNG 14 VIDEO",
+            "",
+            "",
+            "",
+            ttTotals.reach || "",
+            ttTotals.views || "",
+            ttTotals.engagement || "",
+            ttTotals.view_3s || "",
+            ttTotals.view_1m || ""
+        ] : null;
+
         const sheetData = [header, ...data];
         if (totalsRow) sheetData.push(totalsRow);
+
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [
-            { wch: 5 }, { wch: 8 }, { wch: 8 }, { wch: 22 }, { wch: 10 },
-            { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+            { wch: 6 }, { wch: 12 }, { wch: 10 }, { wch: 25 }, { wch: 10 },
+            { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
         ];
         XLSX.utils.book_append_sheet(wb, ws, "TikTok");
     }
+
     const fileName = `Bao-cao-Social-${_dateStr()}.xlsx`;
     XLSX.writeFile(wb, fileName);
 }
-export function exportToPDF({ fbRows, fbTotals, ttRows, ttTotals, includeFb, includeTiktok }) {
+
+export async function exportToPDF({ fbRows = [], fbTotals = null, ttRows = [], ttTotals = null, includeFb = true, includeTiktok = true }) {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    // Sử dụng helvetica cho chữ không bị lỗi tiếng Việt không dấu (đối với PDF cơ bản ta dùng chữ không dấu)
-    doc.setFont("helvetica");
-    let yStart = 14;
-    function addSection(platform, rows, totals) {
-        const { header, data, totalsRow } = getSheet(platform, rows, totals);
-        const platformLabel = platform === "facebook" ? "Facebook" : "TikTok";
-        doc.setFontSize(13);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(26, 30, 38);
-        doc.text(`Thong ke ${platformLabel}`, 14, yStart);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Ngay xuat: ${new Date().toLocaleDateString("vi-VN")}`, 14, yStart + 6);
-        yStart += 12;
-        const removeVietnameseTones = (str) => {
-            if (typeof str !== "string") return str;
-            return str
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/đ/g, "d")
-                .replace(/Đ/g, "D");
-        };
-        const cleanHeader = header.map(h => removeVietnameseTones(h));
-        const cleanBody = data.map(row => row.map(cell => removeVietnameseTones(cell)));
-        
-        if (totalsRow) {
-            cleanBody.push(totalsRow.map(cell => removeVietnameseTones(cell)));
+
+    const fontName = await ensureVietnameseFont(doc);
+    const cleanText = (val) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val);
+        return fontName === "helvetica" ? removeVietnameseTones(str) : str;
+    };
+
+    let firstPage = true;
+
+    // Render Facebook Section
+    if (includeFb && fbRows.length > 0) {
+        firstPage = false;
+        const header = FB_COLS.map(c => cleanText(c.label));
+        const body = fbRows.map(row => FB_COLS.map(c => cleanText(row[c.key] ?? "")));
+
+        if (fbTotals) {
+            body.push([
+                cleanText("TỔNG"),
+                cleanText(fbTotals.videos || "14 video"),
+                cleanText("--"),
+                cleanText(fbTotals.views || ""),
+                cleanText(fbTotals.reach || ""),
+                cleanText(fbTotals.likes || ""),
+                cleanText(fbTotals.comments || ""),
+                cleanText(fbTotals.shares || ""),
+                cleanText(fbTotals.saves || ""),
+                cleanText(fbTotals.total_time || ""),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText(fbTotals.new_followers || ""),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText("--"),
+                cleanText("--")
+            ]);
         }
 
         autoTable(doc, {
-            startY: yStart,
-            head: [cleanHeader],
-            body: cleanBody,
+            startY: 10,
+            head: [header],
+            body: body,
             theme: "grid",
             styles: {
-                fontSize: 7.5,
-                cellPadding: 2.5,
-                font: "helvetica",
+                font: fontName,
+                fontSize: 6.5,
+                cellPadding: 1.8,
                 overflow: "linebreak",
                 textColor: [26, 30, 38],
+                lineWidth: 0.15,
+                lineColor: [200, 200, 200]
             },
             headStyles: {
-                fillColor: [183, 135, 46],   // var(--gold) = #B7872E
-                textColor: 255,
+                fillColor: [208, 217, 234], // Soft ice blue #D0D9EA
+                textColor: [0, 0, 0],
                 fontStyle: "bold",
-                fontSize: 8,
+                fontSize: 7,
                 halign: "center",
+                valign: "middle"
             },
-            alternateRowStyles: {
-                fillColor: [250, 249, 246],  // var(--cream)
+            columnStyles: {
+                0: { halign: "center", fontStyle: "bold" },
+                1: { halign: "center" },
+                2: { halign: "left" },
+                3: { halign: "center" },
+                4: { halign: "center" },
+                5: { halign: "center" },
+                6: { halign: "center" },
+                7: { halign: "center" },
+                8: { halign: "center" },
+                9: { halign: "center" },
+                10: { halign: "center" },
+                11: { halign: "center" },
+                12: { halign: "center" },
+                13: { halign: "left" },
+                14: { halign: "center" },
+                15: { halign: "center" },
+                16: { halign: "center" },
+                17: { halign: "center" },
+                18: { halign: "left" },
+                19: { halign: "left" }
             },
             didParseCell: (data) => {
-                if (totalsRow && data.row.index === cleanBody.length - 1) {
-                    data.cell.styles.fillColor = [243, 236, 224];
+                if (fbTotals && data.row.index === body.length - 1) {
+                    data.cell.styles.fillColor = [226, 213, 222]; // Soft pinkish purple #E2D5DE
                     data.cell.styles.fontStyle = "bold";
+                    data.cell.styles.textColor = [0, 0, 0];
                 }
             },
-            margin: { left: 10, right: 10 },
+            margin: { left: 8, right: 8 }
         });
-
-        yStart = doc.lastAutoTable.finalY + 16;
-
-        // Trang mới nếu còn phần khác
-        if (yStart > doc.internal.pageSize.getHeight() - 30) {
-            doc.addPage();
-            yStart = 14;
-        }
     }
 
-    if (includeFb) addSection("facebook", fbRows, fbTotals);
-    if (includeTiktok) addSection("tiktok", ttRows, ttTotals);
+    // Render TikTok Section
+    if (includeTiktok && ttRows.length > 0) {
+        if (!firstPage) {
+            doc.addPage();
+        }
 
-    doc.save(`Bao-cao-Social-${_dateStr()}.pdf`);
+        const header = TT_COLS.map(c => cleanText(c.label));
+        const body = ttRows.map(row => TT_COLS.map(c => cleanText(row[c.key] ?? "")));
+
+        let totalsCell = null;
+        if (ttTotals) {
+            totalsCell = [
+                { content: cleanText(ttTotals.videos || "TỔNG 14 VIDEO"), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } },
+                cleanText(""),
+                cleanText(ttTotals.reach || ""),
+                cleanText(ttTotals.views || ""),
+                cleanText(ttTotals.engagement || ""),
+                cleanText(ttTotals.view_3s || ""),
+                cleanText(ttTotals.view_1m || "")
+            ];
+            body.push(totalsCell);
+        }
+
+        autoTable(doc, {
+            startY: 10,
+            head: [header],
+            body: body,
+            theme: "grid",
+            styles: {
+                font: fontName,
+                fontSize: 8.5,
+                cellPadding: 2.5,
+                overflow: "linebreak",
+                textColor: [26, 30, 38],
+                lineWidth: 0.15,
+                lineColor: [200, 200, 200]
+            },
+            headStyles: {
+                fillColor: [226, 213, 222], // Soft pinkish purple #E2D5DE
+                textColor: [0, 0, 0],
+                fontStyle: "bold",
+                fontSize: 9,
+                halign: "center",
+                valign: "middle"
+            },
+            columnStyles: {
+                0: { halign: "center", fontStyle: "bold" },
+                1: { halign: "center" },
+                2: { halign: "center" },
+                3: { halign: "left" },
+                4: { halign: "center", fontStyle: "bold" },
+                5: { halign: "center", fontStyle: "bold" },
+                6: { halign: "center", fontStyle: "bold" },
+                7: { halign: "center", fontStyle: "bold" },
+                8: { halign: "center", fontStyle: "bold" }
+            },
+            didParseCell: (data) => {
+                if (ttTotals && data.row.index === body.length - 1) {
+                    data.cell.styles.fillColor = [217, 225, 242]; // Soft ice blue #D9E1F2
+                    data.cell.styles.fontStyle = "bold";
+                    data.cell.styles.textColor = [0, 0, 0];
+                }
+            },
+            margin: { left: 15, right: 15 }
+        });
+    }
+
+    doc.save(`chi-tiet-chi-so-${_dateStr()}.pdf`);
 }
 
 function _dateStr() {

@@ -1,0 +1,61 @@
+.sync-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.sync-status-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+}
+
+.sync-status-pill.queued {
+    background: #F3F4F6;
+    color: #4B5563;
+}
+
+.sync-status-pill.running {
+    background: #E0F2FE;
+    color: #0284C7;
+    animation: pulse 1.5s infinite;
+}
+
+.sync-status-pill.success {
+    background: #EAF4EC;
+    color: var(--success);
+}
+
+.sync-status-pill.failed {
+    background: #FDF2F2;
+    color: var(--error);
+}
+
+.sync-status-pill.cancelled {
+    background: #FFF9E6;
+    color: var(--warning);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.progress-bar-container {
+    width: 100px;
+    height: 8px;
+    background: var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    transition: width 0.3s ease;
+}
