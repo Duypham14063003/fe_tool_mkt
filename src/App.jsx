@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import Statistics from "./pages/Statistics";
 import Dashboard from "./pages/Dashboard";
 import PlatformAccounts from "./pages/PlatformAccounts";
 import SyncJobs from "./pages/SyncJobs";

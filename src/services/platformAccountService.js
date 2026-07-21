@@ -31,3 +31,7 @@ export async function reconnect(id) {
 export async function getSessionStatus(id) {
     return apiGet(`/platform-accounts/${id}/session-status`);
 }
+
+export async function getOAuthUrl(platform) {
+    return apiGet(`/auth/${platform.toLowerCase()}/url`);
+}
