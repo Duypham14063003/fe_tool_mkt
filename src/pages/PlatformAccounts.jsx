@@ -8,7 +8,8 @@ import {
     createAccount,
     deleteAccount,
     testConnection,
-    reconnect
+    reconnect,
+    getOAuthUrl
 } from "../services/platformAccountService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
@@ -96,6 +97,31 @@ export default function PlatformAccounts({ onLogout }) {
         fetchAccounts();
     }, []);
 
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const success = params.get("success");
+        const error = params.get("error");
+        if (success) {
+            const saved = params.get("saved") || "0";
+            window.history.replaceState({}, "", "/accounts");
+            alert(`Đã liên kết ${success === "facebook" ? "Facebook" : "TikTok"} thành công (${saved} tài khoản).`);
+            fetchAccounts();
+        } else if (error) {
+            window.history.replaceState({}, "", "/accounts");
+            alert(`Liên kết thất bại: ${error}`);
+        }
+    }, [location.search]);
+
+    const handleOAuthConnect = async (targetPlatform) => {
+        try {
+            const { url } = await getOAuthUrl(targetPlatform);
+            if (!url) throw new Error("Backend không trả về URL đăng nhập.");
+            window.location.assign(url);
+        } catch (err) {
+            alert(`Không thể bắt đầu liên kết ${targetPlatform}: ${err.message}`);
+        }
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -177,15 +203,16 @@ export default function PlatformAccounts({ onLogout }) {
 
             <main className="main">
                 <header className="topbar">
-                    <div className="topbar-right">
-                        <button className="btn-primary" onClick={() => setShowModal(true)}>+ Thêm tài khoản</button>
+                    <div className="topbar-right" style={{ display: "flex", gap: "10px" }}>
+                        <button className="btn-outline" onClick={() => handleOAuthConnect("FACEBOOK")}>Kết nối Facebook</button>
+                        <button className="btn-primary" onClick={() => handleOAuthConnect("TIKTOK")}>Kết nối TikTok</button>
                     </div>
                 </header>
 
                 <div className="content" style={{ padding: "32px" }}>
                     <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
                     <h1 className="page-title">Quản lý Tài khoản Mạng xã hội</h1>
-                    <p className="page-desc">Kết nối và quản lý token liên kết với Facebook và TikTok Pages/Accounts.</p>
+                    <p className="page-desc">Liên kết an toàn qua Facebook/TikTok OAuth. Access token được mã hóa và không hiển thị trên giao diện.</p>
 
                     {loading ? (
                         <div style={{ padding: "40px", textAlign: "center" }}>Đang tải danh sách tài khoản...</div>

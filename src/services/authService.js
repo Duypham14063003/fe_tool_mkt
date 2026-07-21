@@ -1,5 +1,4 @@
-import { apiPost } from "../lib/apiClient.js";
-import { getDeviceId, getDeviceName } from "../utils/device";
+import { apiGet, apiPost } from "../lib/apiClient.js";
 
 const ACCESS_TOKEN_KEY = "19t_access_token";
 const REFRESH_TOKEN_KEY = "19t_refresh_token";
@@ -17,19 +16,18 @@ function storageFor(remember) {
  * (localStorage) or only for the current tab session (sessionStorage).
  */
 export async function login({ email, password, remember = true }) {
-    const payload = {
-        email,
-        password,
-        device_id: getDeviceId(),
-        device_name: getDeviceName(),
-    };
+    const payload = { email, password };
 
     const data = await apiPost("/auth/login", payload);
     const store = storageFor(remember);
 
     if (data?.accessToken) store.setItem(ACCESS_TOKEN_KEY, data.accessToken);
     if (data?.refreshToken) store.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
-    if (data?.user) store.setItem(USER_KEY, JSON.stringify(data.user));
+    if (data?.accessToken) {
+        const user = await apiGet("/auth/me");
+        data.user = user;
+        store.setItem(USER_KEY, JSON.stringify(user));
+    }
 
     return data;
 }
@@ -63,4 +61,4 @@ export function logout() {
  */
 export async function forgotPassword(email) {
     return apiPost("/auth/forgot-password", { email });
-}
+}

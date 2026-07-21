@@ -3,7 +3,7 @@
 // Base URL comes from Vite env so dev/prod can point at different hosts
 // without touching code — set VITE_API_BASE_URL in .env / .env.local.
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
 export class ApiError extends Error {
     constructor(message, status, payload) {
@@ -311,21 +311,38 @@ async function handleMockRequest(path, body, queryParams = {}, method = "GET") {
         };
     }
 
-    // Platform Accounts mock
+    // Platform Accounts mock (Stateful persistence via localStorage)
     if (path === "/platform-accounts") {
-        if (method === "POST") {
-            return { id: "mock-new-" + Date.now(), ...body, connectionStatus: body.accessToken ? "CONNECTED" : "DISCONNECTED", lastSyncedAt: null, createdAt: new Date().toISOString() };
+        let storedAccs = JSON.parse(localStorage.getItem("mock_platform_accounts") || "null");
+        if (!storedAccs) {
+            storedAccs = [
+                { id: "pa-001", platform: "FACEBOOK", accountName: "19T Digital FB", externalAccountId: "100064xxx", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 3600000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
+                { id: "pa-002", platform: "TIKTOK", accountName: "19T Digital TikTok", externalAccountId: "@19tdigital", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 7200000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 15).toISOString() },
+                { id: "pa-003", platform: "FACEBOOK", accountName: "19T Page 2", externalAccountId: "100065xxx", connectionStatus: "EXPIRED", lastSyncedAt: new Date(Date.now() - 86400000 * 3).toISOString(), tokenExpiresAt: new Date(Date.now() - 86400000).toISOString() }
+            ];
+            localStorage.setItem("mock_platform_accounts", JSON.stringify(storedAccs));
         }
-        return [
-            { id: "pa-001", platform: "FACEBOOK", accountName: "19T Digital FB", externalAccountId: "100064xxx", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 3600000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
-            { id: "pa-002", platform: "TIKTOK", accountName: "19T Digital TikTok", externalAccountId: "@19tdigital", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 7200000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 15).toISOString() },
-            { id: "pa-003", platform: "FACEBOOK", accountName: "19T Page 2", externalAccountId: "100065xxx", connectionStatus: "EXPIRED", lastSyncedAt: new Date(Date.now() - 86400000 * 3).toISOString(), tokenExpiresAt: new Date(Date.now() - 86400000).toISOString() }
-        ];
+
+        if (method === "POST") {
+            const newAcc = { id: "mock-new-" + Date.now(), ...body, connectionStatus: body.accessToken ? "CONNECTED" : "DISCONNECTED", lastSyncedAt: null, createdAt: new Date().toISOString() };
+            storedAccs.unshift(newAcc);
+            localStorage.setItem("mock_platform_accounts", JSON.stringify(storedAccs));
+            return newAcc;
+        }
+        return storedAccs;
     }
     if (/^\/platform-accounts\/[^/]+$/.test(path) && method === "PATCH") {
-        return { id: path.split("/").pop(), ...body, updatedAt: new Date().toISOString() };
+        const id = path.split("/").pop();
+        let storedAccs = JSON.parse(localStorage.getItem("mock_platform_accounts") || "[]");
+        storedAccs = storedAccs.map(a => a.id === id ? { ...a, ...body, updatedAt: new Date().toISOString() } : a);
+        localStorage.setItem("mock_platform_accounts", JSON.stringify(storedAccs));
+        return { id, ...body, updatedAt: new Date().toISOString() };
     }
     if (/^\/platform-accounts\/[^/]+$/.test(path) && method === "DELETE") {
+        const id = path.split("/").pop();
+        let storedAccs = JSON.parse(localStorage.getItem("mock_platform_accounts") || "[]");
+        storedAccs = storedAccs.filter(a => a.id !== id);
+        localStorage.setItem("mock_platform_accounts", JSON.stringify(storedAccs));
         return { deleted: true };
     }
     if (/\/test-connection$/.test(path)) {
@@ -363,14 +380,29 @@ async function handleMockRequest(path, body, queryParams = {}, method = "GET") {
         const page = parseInt(queryParams.page) || 1;
         const limit = parseInt(queryParams.limit) || 20;
         const allPosts = [
-            { id: "post-001", platform: "FACEBOOK", contentType: "VIDEO", caption: "Tiếp tục xử lý vụ khách đổi website", publishedAt: "2026-07-01T08:00:00Z", thumbnailUrl: null, metrics: [{ views: 201, reach: 175, reactions: 6, comments: 0, shares: 0, saves: 1, engagementRate: 3.43 }] },
-            { id: "post-002", platform: "FACEBOOK", contentType: "VIDEO", caption: "Nốt tập cuối của series", publishedAt: "2026-07-02T09:00:00Z", thumbnailUrl: null, metrics: [{ views: 230, reach: 193, reactions: 7, comments: 0, shares: 0, saves: 0, engagementRate: 3.63 }] },
-            { id: "post-003", platform: "TIKTOK", contentType: "VIDEO", caption: "Bộ lọc thông báo mới của web", publishedAt: "2026-07-01T10:00:00Z", thumbnailUrl: null, metrics: [{ views: 312, reach: 232, reactions: 5, comments: 0, shares: 0, saves: 0, engagementRate: 1.60 }] },
-            { id: "post-004", platform: "TIKTOK", contentType: "VIDEO", caption: "Web đẹp chưa các bạn?", publishedAt: "2026-07-03T11:00:00Z", thumbnailUrl: null, metrics: [{ views: 254, reach: 159, reactions: 6, comments: 0, shares: 0, saves: 0, engagementRate: 2.36 }] },
-            { id: "post-005", platform: "FACEBOOK", contentType: "VIDEO", caption: "Sẽ ra sao khi làm việc với 19T", publishedAt: "2026-07-07T08:30:00Z", thumbnailUrl: null, metrics: [{ views: 421, reach: 382, reactions: 14, comments: 0, shares: 0, saves: 2, engagementRate: 4.19 }] },
-            { id: "post-006", platform: "TIKTOK", contentType: "VIDEO", caption: "Vòng quay may mắn", publishedAt: "2026-07-04T14:00:00Z", thumbnailUrl: null, metrics: [{ views: 317, reach: 227, reactions: 12, comments: 0, shares: 0, saves: 0, engagementRate: 3.79 }] },
-            { id: "post-007", platform: "FACEBOOK", contentType: "VIDEO", caption: "Một ảnh bill đủ nói lên tất cả", publishedAt: "2026-07-09T09:00:00Z", thumbnailUrl: null, metrics: [{ views: 427, reach: 374, reactions: 10, comments: 0, shares: 0, saves: 0, engagementRate: 2.67 }] },
-            { id: "post-008", platform: "TIKTOK", contentType: "VIDEO", caption: "Một trạng thái không tên", publishedAt: "2026-07-06T16:00:00Z", thumbnailUrl: null, metrics: [{ views: 472, reach: 309, reactions: 9, comments: 0, shares: 0, saves: 0, engagementRate: 1.91 }] }
+            // Facebook Posts matching Screenshot 1
+            { id: "fb-001", platform: "FACEBOOK", contentType: "VIDEO", caption: "Bộ lọc thông báo mới", publishedAt: "2026-07-01T08:00:00Z", metrics: [{ views: 312, reach: 232, reactions: 5, comments: 0, shares: 0, view3Seconds: 69, view1Minute: 3, engagementRate: 2.15 }] },
+            { id: "fb-002", platform: "FACEBOOK", contentType: "VIDEO", caption: "Web đẹp chưa các bạn", publishedAt: "2026-07-03T09:00:00Z", metrics: [{ views: 254, reach: 159, reactions: 6, comments: 0, shares: 0, view3Seconds: 68, view1Minute: 4, engagementRate: 3.77 }] },
+            { id: "fb-003", platform: "FACEBOOK", contentType: "VIDEO", caption: "Vòng quay may mắn", publishedAt: "2026-07-04T10:00:00Z", metrics: [{ views: 317, reach: 227, reactions: 12, comments: 0, shares: 0, view3Seconds: 60, view1Minute: 4, engagementRate: 5.29 }] },
+            { id: "fb-004", platform: "FACEBOOK", contentType: "VIDEO", caption: "Một trạng thái không tên", publishedAt: "2026-07-06T11:00:00Z", metrics: [{ views: 472, reach: 309, reactions: 9, comments: 0, shares: 0, view3Seconds: 110, view1Minute: 8, engagementRate: 2.91 }] },
+            { id: "fb-005", platform: "FACEBOOK", contentType: "VIDEO", caption: "Có những lỗi không nên mắc phải", publishedAt: "2026-07-07T12:00:00Z", metrics: [{ views: 257, reach: 172, reactions: 1, comments: 0, shares: 0, view3Seconds: 62, view1Minute: 1, engagementRate: 0.58 }] },
+            { id: "fb-006", platform: "FACEBOOK", contentType: "VIDEO", caption: "Khách 19T feedback", publishedAt: "2026-07-08T13:00:00Z", metrics: [{ views: 308, reach: 222, reactions: 2, comments: 0, shares: 0, view3Seconds: 76, view1Minute: 6, engagementRate: 0.90 }] },
+            { id: "fb-007", platform: "FACEBOOK", contentType: "VIDEO", caption: "Một ảnh bill đủ nói lên tất cả", publishedAt: "2026-07-09T14:00:00Z", metrics: [{ views: 381, reach: 270, reactions: 8, comments: 0, shares: 0, view3Seconds: 79, view1Minute: 6, engagementRate: 2.96 }] },
+            { id: "fb-008", platform: "FACEBOOK", contentType: "VIDEO", caption: "Website nha khoa chuẩn SEO", publishedAt: "2026-07-10T15:00:00Z", metrics: [{ views: 433, reach: 256, reactions: 11, comments: 0, shares: 0, view3Seconds: 93, view1Minute: 7, engagementRate: 4.30 }] },
+            { id: "fb-009", platform: "FACEBOOK", contentType: "VIDEO", caption: "Bài bên WordPress", publishedAt: "2026-07-11T16:00:00Z", metrics: [{ views: 376, reach: 271, reactions: 12, comments: 0, shares: 0, view3Seconds: 126, view1Minute: 11, engagementRate: 4.43 }] },
+            { id: "fb-010", platform: "FACEBOOK", contentType: "VIDEO", caption: "Tưởng báo giá là xong", publishedAt: "2026-07-12T17:00:00Z", metrics: [{ views: 412, reach: 291, reactions: 5, comments: 0, shares: 0, view3Seconds: 129, view1Minute: 6, engagementRate: 1.72 }] },
+            { id: "fb-011", platform: "FACEBOOK", contentType: "VIDEO", caption: "Một cái nút giúp tăng tỷ lệ chuyển đổi", publishedAt: "2026-07-13T18:00:00Z", metrics: [{ views: 444, reach: 285, reactions: 14, comments: 0, shares: 0, view3Seconds: 141, view1Minute: 12, engagementRate: 4.91 }] },
+            { id: "fb-012", platform: "FACEBOOK", contentType: "VIDEO", caption: "Khách đổi từ website cũ sang 19T", publishedAt: "2026-07-14T19:00:00Z", metrics: [{ views: 407, reach: 258, reactions: 11, comments: 0, shares: 0, view3Seconds: 132, view1Minute: 6, engagementRate: 4.26 }] },
+            { id: "fb-013", platform: "FACEBOOK", contentType: "VIDEO", caption: "Nay không nghĩ ra ý tưởng", publishedAt: "2026-07-15T20:00:00Z", metrics: [{ views: 350, reach: 205, reactions: 9, comments: 0, shares: 0, view3Seconds: 110, view1Minute: 13, engagementRate: 4.39 }] },
+            { id: "fb-014", platform: "FACEBOOK", contentType: "VIDEO", caption: "Hợp đồng khổng lồ", publishedAt: "2026-07-16T21:00:00Z", metrics: [{ views: 376, reach: 243, reactions: 16, comments: 0, shares: 0, view3Seconds: 137, view1Minute: 8, engagementRate: 6.58 }] },
+            { id: "fb-015", platform: "FACEBOOK", contentType: "POST", caption: "Tin dạng ảnh", publishedAt: "2026-07-16T22:00:00Z", metrics: [{ views: null, reach: null, reactions: null, comments: null, shares: null, view3Seconds: null, view1Minute: null, engagementRate: null }] },
+
+            // TikTok Posts matching Screenshot 2
+            { id: "tt-001", platform: "TIKTOK", contentType: "VIDEO", caption: "Tiếp tục xử lý vụ khách đổi website", publishedAt: "2026-07-01T08:00:00Z", metrics: [{ views: 201, viewers: 175, likes: 6, comments: 0, shares: 0, saves: 1, totalWatchTimeSeconds: 1186, averageWatchTimeSeconds: 5.7, completionRate: 0, newFollowers: 0, trafficSource: "Đề xuất 80.3%", maleRate: 66, femaleRate: 34, mainAgeGroup: "25-34: 54%", mainLocation: "Việt Nam 98%" }] },
+            { id: "tt-002", platform: "TIKTOK", contentType: "VIDEO", caption: "Nốt tập cuối của series", publishedAt: "2026-07-02T09:00:00Z", metrics: [{ views: 230, viewers: 193, likes: 7, comments: 0, shares: 0, saves: 0, totalWatchTimeSeconds: 1832, averageWatchTimeSeconds: 7.9, completionRate: 1.3, newFollowers: 0, trafficSource: "Đề xuất 81.9%", maleRate: 69, femaleRate: 31, mainAgeGroup: "18-24: 46%", mainLocation: "Việt Nam 94.1%" }] },
+            { id: "tt-003", platform: "TIKTOK", contentType: "VIDEO", caption: "#xhhhhhhhhhhh", publishedAt: "2026-07-03T10:00:00Z", metrics: [{ views: 175, viewers: 148, likes: 9, comments: 0, shares: 0, saves: 0, totalWatchTimeSeconds: 715, averageWatchTimeSeconds: 3.91, completionRate: 3.8, newFollowers: 1, trafficSource: "Đề xuất 75.4%", maleRate: 40, femaleRate: 59, mainAgeGroup: "18-24: 47%", mainLocation: "Việt Nam 96.8%" }] },
+            { id: "tt-004", platform: "TIKTOK", contentType: "VIDEO", caption: "Khách nhắn tin khen", publishedAt: "2026-07-04T11:00:00Z", metrics: [{ views: 167, viewers: 132, likes: 7, comments: 0, shares: 1, saves: 0, totalWatchTimeSeconds: 1145, averageWatchTimeSeconds: 6.29, completionRate: 1.1, newFollowers: 0, trafficSource: "Đề xuất 67.0%", maleRate: 60, femaleRate: 40, mainAgeGroup: "25-34: 48%", mainLocation: "Việt Nam 97.9%" }] },
+            { id: "tt-005", platform: "TIKTOK", contentType: "VIDEO", caption: "Sẽ ra sao khi làm việc với 19T", publishedAt: "2026-07-07T12:00:00Z", metrics: [{ views: 421, viewers: 382, likes: 14, comments: 0, shares: 0, saves: 2, totalWatchTimeSeconds: 5088, averageWatchTimeSeconds: 10.2, completionRate: 0.9, newFollowers: 0, trafficSource: "Đề xuất 89.8%", maleRate: 69, femaleRate: 31, mainAgeGroup: "25-34: 50%", mainLocation: "Việt Nam 96.5%" }] }
         ];
         const filtered = platform ? allPosts.filter(p => p.platform === platform.toUpperCase()) : allPosts;
         const total = filtered.length;

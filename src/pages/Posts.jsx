@@ -86,28 +86,52 @@ function LineChartSVG({ history }) {
     );
 }
 
+function formatDuration(sec) {
+    if (!sec || isNaN(sec)) return "--";
+    const s = Math.round(Number(sec));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) {
+        return `${hrs}h${mins}m${secs}s`;
+    }
+    return `${mins}m${secs}s`;
+}
+
 export default function Posts({ onLogout }) {
     const location = useLocation();
     const [posts, setPosts] = useState([]);
-    const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
-    const [platformFilter, setPlatformFilter] = useState("");
+    const [meta, setMeta] = useState({ page: 1, limit: 100, totalPages: 1 });
+    const [platformFilter, setPlatformFilter] = useState("FACEBOOK");
     const [searchQuery, setSearchQuery] = useState("");
+    
+    // Đang nhập trong input ngày
+    const [tempDateFrom, setTempDateFrom] = useState("");
+    const [tempDateTo, setTempDateTo] = useState("");
+
+    // Ngày thực tế đã bấm Nút Lọc
+    const [appliedDateFrom, setAppliedDateFrom] = useState("");
+    const [appliedDateTo, setAppliedDateTo] = useState("");
+    
+    // Nút preset đang chọn ("all", "this_month", "last_month", "custom")
+    const [activePreset, setActivePreset] = useState("all");
+    
     const [loading, setLoading] = useState(true);
     const [selectedPost, setSelectedPost] = useState(null);
     const [history, setHistory] = useState([]);
     const [confirmLogout, setConfirmLogout] = useState(false);
 
-    const user = getStoredUser();
-
     const fetchPosts = (page = 1) => {
         setLoading(true);
-        const params = { page, limit: 10 };
+        const params = { page, limit: 100 };
         if (platformFilter) params.platform = platformFilter;
+        if (appliedDateFrom) params.dateFrom = appliedDateFrom;
+        if (appliedDateTo) params.dateTo = appliedDateTo;
 
         listPosts(params)
             .then((res) => {
                 setPosts(res.data || []);
-                setMeta(res.meta || { page: 1, limit: 10, totalPages: 1 });
+                setMeta(res.meta || { page: 1, limit: 100, totalPages: 1 });
                 setLoading(false);
             })
             .catch((err) => {
@@ -118,16 +142,96 @@ export default function Posts({ onLogout }) {
 
     useEffect(() => {
         fetchPosts(1);
-    }, [platformFilter]);
+    }, [platformFilter, appliedDateFrom, appliedDateTo]);
+
+    // Bấm nút Chọn Khoảng Nhanh
+    const handleQuickRange = (type) => {
+        setActivePreset(type);
+        const today = new Date();
+        let from = "";
+        let to = "";
+
+        if (type === "this_month") {
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            from = firstDay.toISOString().split("T")[0];
+            to = today.toISOString().split("T")[0];
+        } else if (type === "last_month") {
+            const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+            from = firstDay.toISOString().split("T")[0];
+            to = lastDay.toISOString().split("T")[0];
+        } else if (type === "all") {
+            from = "";
+            to = "";
+        }
+
+        setTempDateFrom(from);
+        setTempDateTo(to);
+        setAppliedDateFrom(from);
+        setAppliedDateTo(to);
+    };
+
+    // Bấm Nút Lọc Dữ Liệu
+    const handleApplyFilter = () => {
+        setActivePreset("custom");
+        setAppliedDateFrom(tempDateFrom);
+        setAppliedDateTo(tempDateTo);
+    };
 
     const handleSelectPost = (post) => {
         setSelectedPost(post);
         getMetricHistory(post.id).then(setHistory).catch(() => setHistory([]));
     };
 
-    const filteredPosts = searchQuery
-        ? posts.filter(p => (p.caption || "").toLowerCase().includes(searchQuery.toLowerCase()))
-        : posts;
+    // Lọc theo từ khóa & ngày áp dụng
+    const filteredPosts = posts.filter(p => {
+        const matchesSearch = !searchQuery || (p.caption || "").toLowerCase().includes(searchQuery.toLowerCase());
+        const postDate = new Date(p.publishedAt);
+        const matchesFrom = !appliedDateFrom || postDate >= new Date(appliedDateFrom);
+        const matchesTo = !appliedDateTo || postDate <= new Date(appliedDateTo + "T23:59:59");
+        return matchesSearch && matchesFrom && matchesTo;
+    });
+
+    // Tính toán hàng tổng cộng (Total Row)
+    const calcTotals = () => {
+        const totals = {
+            count: filteredPosts.length,
+            views: 0,
+            reach: 0,
+            viewers: 0,
+            interactions: 0,
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            saves: 0,
+            view3s: 0,
+            view1m: 0,
+            watchTime: 0,
+            newFollowers: 0
+        };
+
+        filteredPosts.forEach(p => {
+            const m = p.metrics?.[0] || {};
+            totals.views += Number(m.views) || 0;
+            totals.reach += Number(m.reach) || 0;
+            totals.viewers += Number(m.viewers) || 0;
+            totals.likes += Number(m.likes) || 0;
+            totals.comments += Number(m.comments) || 0;
+            totals.shares += Number(m.shares) || 0;
+            totals.saves += Number(m.saves) || 0;
+            totals.view3s += Number(m.view3Seconds) || 0;
+            totals.view1m += Number(m.view1Minute) || 0;
+            totals.watchTime += Number(m.totalWatchTimeSeconds) || 0;
+            totals.newFollowers += Number(m.newFollowers) || 0;
+
+            const reactions = Number(m.reactions) || Number(m.likes) || 0;
+            totals.interactions += reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
+        });
+
+        return totals;
+    };
+
+    const totals = calcTotals();
 
     return (
         <div className="app">
@@ -161,7 +265,6 @@ export default function Posts({ onLogout }) {
                 <header className="topbar">
                     <div className="topbar-right">
                         <div className="search">
-                            {/*<span className="search-icon">🔍</span>*/}
                             <input
                                 type="text"
                                 placeholder="Tìm theo caption..."
@@ -174,45 +277,242 @@ export default function Posts({ onLogout }) {
 
                 <div className="content" style={{ padding: "32px" }}>
                     <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
-                    <h1 className="page-title">Quản lý Nội dung (Posts)</h1>
-                    <p className="page-desc">Danh sách bài viết đã xuất bản và chỉ số hiệu suất từng bài.</p>
+                    <h1 className="page-title">Chi Tiết Chỉ Số Đo Lường</h1>
+                    <p className="page-desc">Hiển thị đầy đủ thông tin chỉ số thực từ Backend Facebook & TikTok theo thời gian.</p>
 
-                    <div className="posts-filter-bar" style={{ marginTop: "24px" }}>
-                        <div className="tabs">
-                            <button className={`tab${platformFilter === "" ? " active" : ""}`} onClick={() => setPlatformFilter("")}>Tất cả</button>
-                            <button className={`tab${platformFilter === "FACEBOOK" ? " active" : ""}`} onClick={() => setPlatformFilter("FACEBOOK")}>Facebook</button>
-                            <button className={`tab${platformFilter === "TIKTOK" ? " active" : ""}`} onClick={() => setPlatformFilter("TIKTOK")}>TikTok</button>
+                    {/* Thanh Bộ Lọc & Ngày tháng */}
+                    <div className="posts-filter-bar" style={{ marginTop: "24px", flexDirection: "column", alignItems: "stretch", gap: "16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+                            {/* Tabs Nền Tảng */}
+                            <div className="tabs">
+                                <button
+                                    className={`tab${platformFilter === "FACEBOOK" ? " active" : ""}`}
+                                    onClick={() => setPlatformFilter("FACEBOOK")}
+                                    style={platformFilter === "FACEBOOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                >
+                                    Facebook
+                                </button>
+                                <button
+                                    className={`tab${platformFilter === "TIKTOK" ? " active" : ""}`}
+                                    onClick={() => setPlatformFilter("TIKTOK")}
+                                    style={platformFilter === "TIKTOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                >
+                                    TikTok
+                                </button>
+                                <button
+                                    className={`tab${platformFilter === "" ? " active" : ""}`}
+                                    onClick={() => setPlatformFilter("")}
+                                    style={platformFilter === "" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                >
+                                    Tất cả
+                                </button>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)", padding: "10px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)", flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink-soft)" }}>Chọn ngày:</span>
+                                <input
+                                    type="date"
+                                    value={tempDateFrom}
+                                    onChange={(e) => setTempDateFrom(e.target.value)}
+                                    style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
+                                />
+                                <span style={{ color: "var(--ink-soft)" }}>đến</span>
+                                <input
+                                    type="date"
+                                    value={tempDateTo}
+                                    onChange={(e) => setTempDateTo(e.target.value)}
+                                    style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
+                                />
+
+                                {/* Nút Lọc Dữ Liệu nổi bật */}
+                                <button
+                                    onClick={handleApplyFilter}
+                                    style={{
+                                        background: "var(--gold-deep)",
+                                        color: "#fff",
+                                        fontWeight: "600",
+                                        padding: "6px 16px",
+                                        borderRadius: "6px",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                                    }}
+                                >
+                                    Lọc
+                                </button>
+
+                                <div style={{ height: "20px", width: "1px", background: "var(--line)", margin: "0 4px" }} />
+                                <button
+                                    className="btn-outline small-btn"
+                                    onClick={() => handleQuickRange("this_month")}
+                                    style={activePreset === "this_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                >
+                                    Tháng này
+                                </button>
+                                <button
+                                    className="btn-outline small-btn"
+                                    onClick={() => handleQuickRange("last_month")}
+                                    style={activePreset === "last_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                >
+                                    Tháng trước
+                                </button>
+                                <button
+                                    className="btn-outline small-btn"
+                                    onClick={() => handleQuickRange("all")}
+                                    style={activePreset === "all" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                >
+                                    Tất cả
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <section className="panel">
+                    <section className="panel" style={{ overflowX: "auto", marginTop: "16px" }}>
                         <div className="table-wrap">
                             {loading ? (
-                                <div style={{ padding: "40px", textAlign: "center" }}>Đang tải bài viết...</div>
+                                <div style={{ padding: "40px", textAlign: "center" }}>Đang tải dữ liệu bài viết...</div>
                             ) : filteredPosts.length === 0 ? (
-                                <div style={{ padding: "40px", textAlign: "center" }}>Không tìm thấy bài viết nào.</div>
+                                <div style={{ padding: "40px", textAlign: "center" }}>Không tìm thấy dữ liệu nào trong khoảng thời gian này.</div>
+                            ) : platformFilter === "FACEBOOK" ? (
+                                /* BẢNG CHUẨN FACEBOOK */
+                                <table className="grid-table">
+                                    <thead>
+                                        <tr style={{ background: "#D9E1F2", color: "#000" }}>
+                                            <th className="center" style={{ width: "40px" }}>STT</th>
+                                            <th className="center" style={{ width: "90px" }}>Ngày đăng</th>
+                                            <th className="center" style={{ width: "80px" }}>Loại</th>
+                                            <th className="left">Caption</th>
+                                            <th className="center">Reach</th>
+                                            <th className="center">Lượt xem</th>
+                                            <th className="center">Tương tác</th>
+                                            <th className="center">Xem từ 3s</th>
+                                            <th className="center">Xem từ 1 phút</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredPosts.map((post, idx) => {
+                                            const m = post.metrics?.[0] || {};
+                                            const reactions = Number(m.reactions) || Number(m.likes) || 0;
+                                            const totalInter = reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
+                                            const contentTypeText = post.contentType === "VIDEO" ? "Video" : "Ảnh";
+
+                                            return (
+                                                <tr key={post.id}>
+                                                    <td className="center font-bold">{idx + 1}</td>
+                                                    <td className="center">{new Date(post.publishedAt).toLocaleDateString("vi-VN")}</td>
+                                                    <td className="center">{contentTypeText}</td>
+                                                    <td className="left caption-cell" style={{ maxWidth: "260px" }}>{post.caption || "(Không có caption)"}</td>
+                                                    <td className="center font-bold">{m.reach ? Number(m.reach).toLocaleString() : "--"}</td>
+                                                    <td className="center font-bold">{m.views ? Number(m.views).toLocaleString() : "--"}</td>
+                                                    <td className="center font-bold">{totalInter ? totalInter.toLocaleString() : "0"}</td>
+                                                    <td className="center">{m.view3Seconds ? Number(m.view3Seconds).toLocaleString() : "--"}</td>
+                                                    <td className="center">{m.view1Minute ? Number(m.view1Minute).toLocaleString() : "--"}</td>
+                                                </tr>
+                                            );
+                                        })}
+
+                                        {/* Hàng tổng cộng */}
+                                        <tr style={{ background: "#D9E1F2", fontWeight: "bold" }}>
+                                            <td colSpan={4} className="center">TỔNG {totals.count} BÀI</td>
+                                            <td className="center">{totals.reach.toLocaleString()}</td>
+                                            <td className="center">{totals.views.toLocaleString()}</td>
+                                            <td className="center">{totals.interactions.toLocaleString()}</td>
+                                            <td className="center">{totals.view3s.toLocaleString()}</td>
+                                            <td className="center">{totals.view1m.toLocaleString()}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            ) : platformFilter === "TIKTOK" ? (
+                                /* BẢNG CHUẨN TIKTOK */
+                                <table className="grid-table" style={{ fontSize: "12px", minWidth: "1200px" }}>
+                                    <thead>
+                                        <tr style={{ background: "#B4C6E7", color: "#000" }}>
+                                            <th className="center">STT</th>
+                                            <th className="center">Ngày</th>
+                                            <th className="left" style={{ minWidth: "150px" }}>Caption</th>
+                                            <th className="center">Lượt xem</th>
+                                            <th className="center">Người xem</th>
+                                            <th className="center">Like</th>
+                                            <th className="center">Bình luận</th>
+                                            <th className="center">Chia sẻ</th>
+                                            <th className="center">Lưu video</th>
+                                            <th className="center">Tổng thời gian phát</th>
+                                            <th className="center">Thời gian xem TB</th>
+                                            <th className="center">Tỷ lệ xem hết</th>
+                                            <th className="center">Follow mới</th>
+                                            <th className="center">Nguồn chính</th>
+                                            <th className="center">Nam</th>
+                                            <th className="center">Nữ</th>
+                                            <th className="center">Độ tuổi chính</th>
+                                            <th className="center">Khu vực chính</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredPosts.map((post, idx) => {
+                                            const m = post.metrics?.[0] || {};
+                                            const raw = m.rawData || {};
+
+                                            return (
+                                                <tr key={post.id}>
+                                                    <td className="center font-bold">{idx + 1}</td>
+                                                    <td className="center">{new Date(post.publishedAt).toLocaleDateString("vi-VN")}</td>
+                                                    <td className="left caption-cell" style={{ maxWidth: "200px" }}>{post.caption || "(Không có caption)"}</td>
+                                                    <td className="center font-bold">{m.views ? Number(m.views).toLocaleString() : 0}</td>
+                                                    <td className="center">{m.viewers ? Number(m.viewers).toLocaleString() : "--"}</td>
+                                                    <td className="center">{m.likes ? Number(m.likes).toLocaleString() : 0}</td>
+                                                    <td className="center">{m.comments ? Number(m.comments).toLocaleString() : 0}</td>
+                                                    <td className="center">{m.shares ? Number(m.shares).toLocaleString() : 0}</td>
+                                                    <td className="center">{m.saves ? Number(m.saves).toLocaleString() : 0}</td>
+                                                    <td className="center">{formatDuration(m.totalWatchTimeSeconds)}</td>
+                                                    <td className="center">{m.averageWatchTimeSeconds ? `${Number(m.averageWatchTimeSeconds).toFixed(1)}s` : "--"}</td>
+                                                    <td className="center">{m.completionRate ? `${Number(m.completionRate).toFixed(1)}%` : "--"}</td>
+                                                    <td className="center">{m.newFollowers ? Number(m.newFollowers) : 0}</td>
+                                                    <td className="center">{m.trafficSource || raw.reach_type || "Đề xuất"}</td>
+                                                    <td className="center">{m.maleRate ? `${Number(m.maleRate)}%` : "--"}</td>
+                                                    <td className="center">{m.femaleRate ? `${Number(m.femaleRate)}%` : "--"}</td>
+                                                    <td className="center">{m.mainAgeGroup || "--"}</td>
+                                                    <td className="center">{m.mainLocation || "Việt Nam"}</td>
+                                                </tr>
+                                            );
+                                        })}
+
+                                        {/* Hàng tổng cộng */}
+                                        <tr style={{ background: "#B4C6E7", fontWeight: "bold" }}>
+                                            <td colSpan={3} className="center">TỔNG {totals.count} VIDEO</td>
+                                            <td className="center">{totals.views.toLocaleString()}</td>
+                                            <td className="center">{totals.viewers ? totals.viewers.toLocaleString() : "--"}</td>
+                                            <td className="center">{totals.likes.toLocaleString()}</td>
+                                            <td className="center">{totals.comments.toLocaleString()}</td>
+                                            <td className="center">{totals.shares.toLocaleString()}</td>
+                                            <td className="center">{totals.saves.toLocaleString()}</td>
+                                            <td className="center">{formatDuration(totals.watchTime)}</td>
+                                            <td className="center">--</td>
+                                            <td className="center">--</td>
+                                            <td className="center">{totals.newFollowers}</td>
+                                            <td colSpan={5} className="center">--</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             ) : (
+                                /* BẢNG TẤT CẢ */
                                 <table className="grid-table">
                                     <thead>
                                         <tr>
-                                            {/*<th>Media</th>*/}
                                             <th>Nền tảng</th>
                                             <th>Caption</th>
                                             <th>Ngày đăng</th>
                                             <th>Lượt xem</th>
                                             <th>Reach</th>
-                                            <th>Tương tác (%)</th>
+                                            <th>Tương tác</th>
                                             <th>Chi tiết</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredPosts.map((post) => {
-                                            const latestMetric = post.metrics?.[0] || {};
+                                            const m = post.metrics?.[0] || {};
                                             return (
                                                 <tr key={post.id}>
-                                                    {/*<td className="center">*/}
-                                                    {/*    <div className="post-thumbnail">🎬</div>*/}
-                                                    {/*</td>*/}
                                                     <td className="center">
                                                         <span className={`account-platform-badge ${post.platform.toLowerCase()}`}>
                                                             {post.platform}
@@ -220,9 +520,9 @@ export default function Posts({ onLogout }) {
                                                     </td>
                                                     <td className="left caption-cell">{post.caption || "(Không có caption)"}</td>
                                                     <td className="center">{new Date(post.publishedAt).toLocaleDateString("vi-VN")}</td>
-                                                    <td className="center font-bold">{(latestMetric.views ?? 0).toLocaleString()}</td>
-                                                    <td className="center font-bold">{(latestMetric.reach ?? 0).toLocaleString()}</td>
-                                                    <td className="center">{latestMetric.engagementRate ?? 0}%</td>
+                                                    <td className="center font-bold">{(m.views ?? 0).toLocaleString()}</td>
+                                                    <td className="center font-bold">{(m.reach ?? 0).toLocaleString()}</td>
+                                                    <td className="center">{m.engagementRate ?? 0}%</td>
                                                     <td className="center">
                                                         <button className="btn-outline small-btn" onClick={() => handleSelectPost(post)}>Xem</button>
                                                     </td>
@@ -271,12 +571,12 @@ export default function Posts({ onLogout }) {
                                 <span>{(selectedPost.metrics?.[0]?.views ?? 0).toLocaleString()}</span>
                             </div>
                             <div className="post-metric-box">
-                                <label>Tiếp cận</label>
+                                <label>Tiếp cận (Reach)</label>
                                 <span>{(selectedPost.metrics?.[0]?.reach ?? 0).toLocaleString()}</span>
                             </div>
                             <div className="post-metric-box">
-                                <label>Reactions</label>
-                                <span>{selectedPost.metrics?.[0]?.reactions ?? 0}</span>
+                                <label>Reactions / Likes</label>
+                                <span>{selectedPost.metrics?.[0]?.reactions || selectedPost.metrics?.[0]?.likes || 0}</span>
                             </div>
                         </div>
 
