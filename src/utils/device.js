@@ -1,7 +1,3 @@
-// device_id / device_name are optional per the login API, but useful for
-// per-device session management (see section 4.1 of the integration guide).
-// We generate a stable per-browser id once and cache it in localStorage.
-
 const DEVICE_ID_KEY = "19t_device_id";
 
 export function getDeviceId() {

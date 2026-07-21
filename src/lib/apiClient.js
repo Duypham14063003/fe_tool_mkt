@@ -35,7 +35,7 @@ export async function apiPost(path, body) {
     const useMock = import.meta.env.VITE_USE_MOCK_API === "true";
     if (useMock) {
         console.warn(`[apiClient] Explicit Mock mode active for POST ${path}`);
-        return handleMockRequest(path, body);
+        return handleMockRequest(path, body, {}, "POST");
     }
 
     const token = localStorage.getItem("19t_access_token") || sessionStorage.getItem("19t_access_token");
@@ -56,7 +56,7 @@ export async function apiPost(path, body) {
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
         if (isLocal) {
             console.warn(`[apiClient] Backend connection failed. Falling back to Mock authentication for local testing.`);
-            return handleMockRequest(path, body);
+            return handleMockRequest(path, body, {}, "POST");
         }
         
         throw new ApiError("Không thể kết nối tới máy chủ. Kiểm tra mạng hoặc thử lại sau.", 0, null);
@@ -122,6 +122,48 @@ export async function apiGet(path, params = {}) {
         throw new ApiError(message, response.status, data);
     }
 
+    return data;
+}
+
+export async function apiDelete(path) {
+    const url = `${BASE_URL}${path}`;
+    const useMock = import.meta.env.VITE_USE_MOCK_API === "true";
+    if (useMock) return handleMockRequest(path, null, {}, "DELETE");
+    const token = localStorage.getItem("19t_access_token") || sessionStorage.getItem("19t_access_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    let response;
+    try {
+        response = await fetch(url, { method: "DELETE", headers });
+    } catch (networkErr) {
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        if (isLocal) return handleMockRequest(path, null, {}, "DELETE");
+        throw new ApiError("Không thể kết nối tới máy chủ.", 0, null);
+    }
+    let data = null;
+    try { data = await response.json(); } catch {}
+    if (!response.ok) throw new ApiError(data?.message || defaultMessageForStatus(response.status), response.status, data);
+    return data;
+}
+
+export async function apiPatch(path, body) {
+    const url = `${BASE_URL}${path}`;
+    const useMock = import.meta.env.VITE_USE_MOCK_API === "true";
+    if (useMock) return handleMockRequest(path, body, {}, "PATCH");
+    const token = localStorage.getItem("19t_access_token") || sessionStorage.getItem("19t_access_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    let response;
+    try {
+        response = await fetch(url, { method: "PATCH", headers, body: JSON.stringify(body) });
+    } catch (networkErr) {
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        if (isLocal) return handleMockRequest(path, body, {}, "PATCH");
+        throw new ApiError("Không thể kết nối tới máy chủ.", 0, null);
+    }
+    let data = null;
+    try { data = await response.json(); } catch {}
+    if (!response.ok) throw new ApiError(data?.message || defaultMessageForStatus(response.status), response.status, data);
     return data;
 }
 
@@ -191,7 +233,7 @@ const MOCK_TT_TOTALS = {
     view_1m: "95"
 };
 
-async function handleMockRequest(path, body, queryParams = {}) {
+async function handleMockRequest(path, body, queryParams = {}, method = "GET") {
     // Simulate brief network delay
     await new Promise((resolve) => setTimeout(resolve, 600));
 
@@ -249,16 +291,127 @@ async function handleMockRequest(path, body, queryParams = {}) {
     if (path === "/api/stats/summary") {
         const platform = queryParams.platform || "facebook";
         if (platform === "tiktok") {
-            return {
-                rows: MOCK_TT_ROWS,
-                totals: MOCK_TT_TOTALS
-            };
+            return { rows: MOCK_TT_ROWS, totals: MOCK_TT_TOTALS };
         } else {
-            return {
-                rows: MOCK_FB_ROWS,
-                totals: MOCK_FB_TOTALS
-            };
+            return { rows: MOCK_FB_ROWS, totals: MOCK_FB_TOTALS };
         }
+    }
+
+    if (path === "/dashboard/summary") {
+        return {
+            totalPosts: 29,
+            totalViews: 10200,
+            totalReach: 7423,
+            totalReactions: 264,
+            totalComments: 5,
+            totalShares: 10,
+            totalSaves: 18,
+            totalNewFollowers: 10,
+            engagementRate: 3.42
+        };
+    }
+
+    // Platform Accounts mock
+    if (path === "/platform-accounts") {
+        if (method === "POST") {
+            return { id: "mock-new-" + Date.now(), ...body, connectionStatus: body.accessToken ? "CONNECTED" : "DISCONNECTED", lastSyncedAt: null, createdAt: new Date().toISOString() };
+        }
+        return [
+            { id: "pa-001", platform: "FACEBOOK", accountName: "19T Digital FB", externalAccountId: "100064xxx", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 3600000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 30).toISOString() },
+            { id: "pa-002", platform: "TIKTOK", accountName: "19T Digital TikTok", externalAccountId: "@19tdigital", connectionStatus: "CONNECTED", lastSyncedAt: new Date(Date.now() - 7200000).toISOString(), tokenExpiresAt: new Date(Date.now() + 86400000 * 15).toISOString() },
+            { id: "pa-003", platform: "FACEBOOK", accountName: "19T Page 2", externalAccountId: "100065xxx", connectionStatus: "EXPIRED", lastSyncedAt: new Date(Date.now() - 86400000 * 3).toISOString(), tokenExpiresAt: new Date(Date.now() - 86400000).toISOString() }
+        ];
+    }
+    if (/^\/platform-accounts\/[^/]+$/.test(path) && method === "PATCH") {
+        return { id: path.split("/").pop(), ...body, updatedAt: new Date().toISOString() };
+    }
+    if (/^\/platform-accounts\/[^/]+$/.test(path) && method === "DELETE") {
+        return { deleted: true };
+    }
+    if (/\/test-connection$/.test(path)) {
+        return { connected: true, status: "CONNECTED" };
+    }
+    if (/\/reconnect$/.test(path)) {
+        return { connectionStatus: "CONNECTED" };
+    }
+    if (/\/session-status$/.test(path)) {
+        return { sessionStatus: "VALID", lastValidatedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000 * 7).toISOString() };
+    }
+
+    // Sync Jobs mock
+    if (path === "/sync" || path === "/sync/facebook" || path === "/sync/tiktok" || /\/sync\/platform-accounts\//.test(path)) {
+        const newJob = { id: "job-" + Date.now(), jobType: body?.platform === "TIKTOK" ? "SYNC_TIKTOK" : "SYNC_FACEBOOK", status: "QUEUED", progress: 0, totalItems: 0, processedItems: 0, dateFrom: body?.dateFrom, dateTo: body?.dateTo, createdAt: new Date().toISOString() };
+        return { jobId: newJob.id, status: newJob.status };
+    }
+    if (path === "/sync/jobs") {
+        return [
+            { id: "job-001", jobType: "SYNC_FACEBOOK", status: "SUCCESS", progress: 100, totalItems: 14, processedItems: 14, dateFrom: "2026-07-01", dateTo: "2026-07-16", createdAt: new Date(Date.now() - 3600000 * 2).toISOString(), finishedAt: new Date(Date.now() - 3600000).toISOString() },
+            { id: "job-002", jobType: "SYNC_TIKTOK", status: "SUCCESS", progress: 100, totalItems: 15, processedItems: 15, dateFrom: "2026-07-01", dateTo: "2026-07-16", createdAt: new Date(Date.now() - 3600000 * 5).toISOString(), finishedAt: new Date(Date.now() - 3600000 * 4).toISOString() },
+            { id: "job-003", jobType: "SYNC_FACEBOOK", status: "FAILED", progress: 40, totalItems: 14, processedItems: 5, errorMessage: "Token expired", dateFrom: "2026-06-01", dateTo: "2026-06-30", createdAt: new Date(Date.now() - 86400000).toISOString(), finishedAt: new Date(Date.now() - 86400000 + 600000).toISOString() }
+        ];
+    }
+    if (/^\/sync\/jobs\/[^/]+$/.test(path) && method !== "POST") {
+        return { id: path.split("/").pop(), jobType: "SYNC_FACEBOOK", status: "SUCCESS", progress: 100, totalItems: 14, processedItems: 14 };
+    }
+    if (/\/cancel$/.test(path)) {
+        return { status: "CANCELLED" };
+    }
+
+    // Posts mock
+    if (path === "/posts") {
+        const platform = queryParams.platform;
+        const page = parseInt(queryParams.page) || 1;
+        const limit = parseInt(queryParams.limit) || 20;
+        const allPosts = [
+            { id: "post-001", platform: "FACEBOOK", contentType: "VIDEO", caption: "Tiếp tục xử lý vụ khách đổi website", publishedAt: "2026-07-01T08:00:00Z", thumbnailUrl: null, metrics: [{ views: 201, reach: 175, reactions: 6, comments: 0, shares: 0, saves: 1, engagementRate: 3.43 }] },
+            { id: "post-002", platform: "FACEBOOK", contentType: "VIDEO", caption: "Nốt tập cuối của series", publishedAt: "2026-07-02T09:00:00Z", thumbnailUrl: null, metrics: [{ views: 230, reach: 193, reactions: 7, comments: 0, shares: 0, saves: 0, engagementRate: 3.63 }] },
+            { id: "post-003", platform: "TIKTOK", contentType: "VIDEO", caption: "Bộ lọc thông báo mới của web", publishedAt: "2026-07-01T10:00:00Z", thumbnailUrl: null, metrics: [{ views: 312, reach: 232, reactions: 5, comments: 0, shares: 0, saves: 0, engagementRate: 1.60 }] },
+            { id: "post-004", platform: "TIKTOK", contentType: "VIDEO", caption: "Web đẹp chưa các bạn?", publishedAt: "2026-07-03T11:00:00Z", thumbnailUrl: null, metrics: [{ views: 254, reach: 159, reactions: 6, comments: 0, shares: 0, saves: 0, engagementRate: 2.36 }] },
+            { id: "post-005", platform: "FACEBOOK", contentType: "VIDEO", caption: "Sẽ ra sao khi làm việc với 19T", publishedAt: "2026-07-07T08:30:00Z", thumbnailUrl: null, metrics: [{ views: 421, reach: 382, reactions: 14, comments: 0, shares: 0, saves: 2, engagementRate: 4.19 }] },
+            { id: "post-006", platform: "TIKTOK", contentType: "VIDEO", caption: "Vòng quay may mắn", publishedAt: "2026-07-04T14:00:00Z", thumbnailUrl: null, metrics: [{ views: 317, reach: 227, reactions: 12, comments: 0, shares: 0, saves: 0, engagementRate: 3.79 }] },
+            { id: "post-007", platform: "FACEBOOK", contentType: "VIDEO", caption: "Một ảnh bill đủ nói lên tất cả", publishedAt: "2026-07-09T09:00:00Z", thumbnailUrl: null, metrics: [{ views: 427, reach: 374, reactions: 10, comments: 0, shares: 0, saves: 0, engagementRate: 2.67 }] },
+            { id: "post-008", platform: "TIKTOK", contentType: "VIDEO", caption: "Một trạng thái không tên", publishedAt: "2026-07-06T16:00:00Z", thumbnailUrl: null, metrics: [{ views: 472, reach: 309, reactions: 9, comments: 0, shares: 0, saves: 0, engagementRate: 1.91 }] }
+        ];
+        const filtered = platform ? allPosts.filter(p => p.platform === platform.toUpperCase()) : allPosts;
+        const total = filtered.length;
+        const data = filtered.slice((page - 1) * limit, page * limit);
+        return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    }
+    if (/^\/posts\/[^/]+\/metric-history$/.test(path)) {
+        const postId = path.split("/")[2];
+        return Array.from({ length: 7 }, (_, i) => ({
+            id: `metric-${postId}-${i}`,
+            metricDate: new Date(Date.now() - (6 - i) * 86400000).toISOString().split("T")[0],
+            views: 150 + Math.floor(Math.random() * 300),
+            reach: 100 + Math.floor(Math.random() * 200),
+            reactions: Math.floor(Math.random() * 20),
+            engagementRate: (Math.random() * 5).toFixed(2)
+        }));
+    }
+    if (/^\/posts\/[^/]+\/metrics$/.test(path)) {
+        return [{ views: 350, reach: 280, reactions: 12, comments: 1, shares: 2, saves: 3, engagementRate: 4.28 }];
+    }
+    if (/^\/posts\/[^/]+$/.test(path)) {
+        return { id: path.split("/").pop(), platform: "FACEBOOK", contentType: "VIDEO", caption: "Bài viết mẫu", publishedAt: "2026-07-10T08:00:00Z", metrics: [] };
+    }
+
+    // KPI mock
+    if (path === "/kpis") {
+        if (method === "POST") return { id: "kpi-" + Date.now(), ...body, createdAt: new Date().toISOString() };
+        return [
+            { id: "kpi-001", platform: "FACEBOOK", periodType: "MONTHLY", periodStart: "2026-07-01", periodEnd: "2026-07-31", metricName: "totalViews", targetValue: 8000 },
+            { id: "kpi-002", platform: "FACEBOOK", periodType: "MONTHLY", periodStart: "2026-07-01", periodEnd: "2026-07-31", metricName: "engagementRate", targetValue: 5 },
+            { id: "kpi-003", platform: "TIKTOK", periodType: "MONTHLY", periodStart: "2026-07-01", periodEnd: "2026-07-31", metricName: "totalViews", targetValue: 6000 },
+            { id: "kpi-004", platform: "TIKTOK", periodType: "MONTHLY", periodStart: "2026-07-01", periodEnd: "2026-07-31", metricName: "totalReach", targetValue: 4000 }
+        ];
+    }
+    if (/^\/kpis\//.test(path) && method === "DELETE") return { deleted: true };
+
+    // Auth me
+    if (path === "/auth/me") {
+        const stored = localStorage.getItem("19t_auth_user") || sessionStorage.getItem("19t_auth_user");
+        if (stored) return JSON.parse(stored);
+        return { id: "mock-user", name: "Admin User", email: "admin@19t.vn", role: "ADMIN" };
     }
 
     throw new ApiError("API Endpoint không tồn tại trên Mock.", 404, null);
