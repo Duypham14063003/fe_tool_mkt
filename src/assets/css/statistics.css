@@ -114,7 +114,7 @@ body {
 .nav {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 12px;
 }
 
 .nav-section-label {
@@ -130,12 +130,12 @@ body {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 11px;
-    padding: 10px 12px;
+    gap: 0;
+    padding: 13px 14px;
     border-radius: var(--radius-sm);
     color: var(--ink-soft);
     text-decoration: none;
-    font-size: 14.5px;
+    font-size: 17px;
     font-weight: 500;
     transition: background 0.15s ease, color 0.15s ease;
 }
@@ -157,9 +157,9 @@ body {
 }
 
 .nav-icon {
-    width: 18px;
-    height: 18px;
-    display: flex;
+    width: 0;
+    height: 0;
+    display: none;
     align-items: center;
     justify-content: center;
     color: #B4AC9C;
@@ -174,7 +174,7 @@ body {
     margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 12px;
 }
 
 .user-card {
@@ -354,7 +354,7 @@ body {
 .page-title {
     font-family: 'Space Grotesk', sans-serif;
     font-size: 30px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.02em;
     margin-bottom: 6px;
 }
