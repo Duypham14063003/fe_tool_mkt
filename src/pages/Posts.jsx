@@ -4,6 +4,8 @@ import "../assets/css/statistics.css";
 import "../assets/css/posts.css";
 import { getStoredUser } from "../services/authService";
 import { listPosts, getMetricHistory } from "../services/postsService";
+import { listAccounts } from "../services/platformAccountService";
+import { exportReportConnected } from "../services/reportService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
 function BrandLogo({ className }) {
@@ -11,6 +13,18 @@ function BrandLogo({ className }) {
     if (broken) return <div className={`${className} logo-fallback`}>19T</div>;
     return <img src={logoImg} alt="19T Digital Logo" className={className} onError={() => setBroken(true)} />;
 }
+
+const IconExcel = () => (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm10.5-8.5l-2.3 3.5 2.3 3.5h-1.8l-1.4-2.3-1.4 2.3H10.1l2.3-3.5-2.3-3.5h1.8l1.4 2.3 1.4-2.3h1.8z"/>
+    </svg>
+);
+
+const IconPdf = () => (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .8-.7 1.5-1.5 1.5H9v2H7.5V7H10c.8 0 1.5.7 1.5 1.5v1zm5 2c0 .8-.7 1.5-1.5 1.5h-2.5V7H15c.8 0 1.5.7 1.5 1.5v3zm4-3.5H19v1h1.5V10H19v3h-1.5V7h3v1.5zM9 8.5h1v1H9v-1zm5 0h1v3h-1v-3zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/>
+    </svg>
+);
 
 const IconHome = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -105,6 +119,10 @@ export default function Posts({ onLogout }) {
     const [platformFilter, setPlatformFilter] = useState("FACEBOOK");
     const [searchQuery, setSearchQuery] = useState("");
     
+    // Tài khoản
+    const [accounts, setAccounts] = useState([]);
+    const [selectedAccountId, setSelectedAccountId] = useState("");
+
     // Đang nhập trong input ngày
     const [tempDateFrom, setTempDateFrom] = useState("");
     const [tempDateTo, setTempDateTo] = useState("");
@@ -121,10 +139,21 @@ export default function Posts({ onLogout }) {
     const [history, setHistory] = useState([]);
     const [confirmLogout, setConfirmLogout] = useState(false);
 
+    useEffect(() => {
+        listAccounts()
+            .then(res => setAccounts(res || []))
+            .catch(err => console.error("Error loading accounts:", err));
+    }, []);
+
+    useEffect(() => {
+        setSelectedAccountId("");
+    }, [platformFilter]);
+
     const fetchPosts = (page = 1) => {
         setLoading(true);
         const params = { page, limit: 100 };
         if (platformFilter) params.platform = platformFilter;
+        if (selectedAccountId) params.platformAccountId = selectedAccountId;
         if (appliedDateFrom) params.dateFrom = appliedDateFrom;
         if (appliedDateTo) params.dateTo = appliedDateTo;
 
@@ -142,7 +171,7 @@ export default function Posts({ onLogout }) {
 
     useEffect(() => {
         fetchPosts(1);
-    }, [platformFilter, appliedDateFrom, appliedDateTo]);
+    }, [platformFilter, selectedAccountId, appliedDateFrom, appliedDateTo]);
 
     // Bấm nút Chọn Khoảng Nhanh
     const handleQuickRange = (type) => {
@@ -276,36 +305,121 @@ export default function Posts({ onLogout }) {
                 </header>
 
                 <div className="content" style={{ padding: "32px" }}>
-                    <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
-                    <h1 className="page-title">Chi Tiết Chỉ Số Đo Lường</h1>
-                    <p className="page-desc">Hiển thị đầy đủ thông tin chỉ số thực từ Backend Facebook & TikTok theo thời gian.</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+                        <div>
+                            <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
+                            <h1 className="page-title">Chi Tiết Chỉ Số Đo Lường</h1>
+                            <p className="page-desc">Hiển thị đầy đủ thông tin chỉ số thực từ Backend Facebook & TikTok theo thời gian.</p>
+                        </div>
+
+                        {/* Nút Xuất Excel & Xuất PDF ở góc phải dòng Tiêu đề (Vùng khoanh đỏ) */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
+                            <button
+                                onClick={() => exportReportConnected({
+                                    posts: filteredPosts,
+                                    totals,
+                                    platform: platformFilter || "ALL",
+                                    dateFrom: appliedDateFrom,
+                                    dateTo: appliedDateTo,
+                                    format: "XLSX"
+                                })}
+                                style={{
+                                    background: "#107c41",
+                                    color: "#fff",
+                                    fontWeight: "600",
+                                    padding: "8px 18px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                                }}
+                                title="Xuất dữ liệu đo lường ra file Excel (.xlsx)"
+                            >
+                                <IconExcel /> Xuất Excel
+                            </button>
+
+                            <button
+                                onClick={() => exportReportConnected({
+                                    posts: filteredPosts,
+                                    totals,
+                                    platform: platformFilter || "ALL",
+                                    dateFrom: appliedDateFrom,
+                                    dateTo: appliedDateTo,
+                                    format: "PDF",
+                                    tableRef: document.querySelector(".table-wrap") || document.querySelector(".grid-table")
+                                })}
+                                style={{
+                                    background: "#d9381e",
+                                    color: "#fff",
+                                    fontWeight: "600",
+                                    padding: "8px 18px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                                }}
+                                title="Xuất báo cáo định dạng PDF"
+                            >
+                                <IconPdf /> Xuất PDF
+                            </button>
+                        </div>
+                    </div>
 
                     {/* Thanh Bộ Lọc & Ngày tháng */}
                     <div className="posts-filter-bar" style={{ marginTop: "24px", flexDirection: "column", alignItems: "stretch", gap: "16px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-                            {/* Tabs Nền Tảng */}
-                            <div className="tabs">
-                                <button
-                                    className={`tab${platformFilter === "FACEBOOK" ? " active" : ""}`}
-                                    onClick={() => setPlatformFilter("FACEBOOK")}
-                                    style={platformFilter === "FACEBOOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
-                                >
-                                    Facebook
-                                </button>
-                                <button
-                                    className={`tab${platformFilter === "TIKTOK" ? " active" : ""}`}
-                                    onClick={() => setPlatformFilter("TIKTOK")}
-                                    style={platformFilter === "TIKTOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
-                                >
-                                    TikTok
-                                </button>
-                                <button
-                                    className={`tab${platformFilter === "" ? " active" : ""}`}
-                                    onClick={() => setPlatformFilter("")}
-                                    style={platformFilter === "" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
-                                >
-                                    Tất cả
-                                </button>
+                            {/* Tabs Nền Tảng & Chọn Tài Khoản */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                                <div className="tabs">
+                                    <button
+                                        className={`tab${platformFilter === "FACEBOOK" ? " active" : ""}`}
+                                        onClick={() => setPlatformFilter("FACEBOOK")}
+                                        style={platformFilter === "FACEBOOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                    >
+                                        Facebook
+                                    </button>
+                                    <button
+                                        className={`tab${platformFilter === "TIKTOK" ? " active" : ""}`}
+                                        onClick={() => setPlatformFilter("TIKTOK")}
+                                        style={platformFilter === "TIKTOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                    >
+                                        TikTok
+                                    </button>
+                                    <button
+                                        className={`tab${platformFilter === "" ? " active" : ""}`}
+                                        onClick={() => setPlatformFilter("")}
+                                        style={platformFilter === "" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
+                                    >
+                                        Tất cả
+                                    </button>
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", padding: "6px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                                    <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink-soft)" }}>Tài khoản:</span>
+                                    <select
+                                        value={selectedAccountId}
+                                        onChange={(e) => setSelectedAccountId(e.target.value)}
+                                        style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px", background: "var(--panel)", color: "var(--ink)", outline: "none" }}
+                                    >
+                                        <option value="">Tất cả tài khoản</option>
+                                        {accounts
+                                            .filter(acc => !platformFilter || acc.platform === platformFilter)
+                                            .map(acc => (
+                                                <option key={acc.id} value={acc.id}>
+                                                    {acc.accountName}
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
                             </div>
 
                             <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)", padding: "10px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)", flexWrap: "wrap" }}>

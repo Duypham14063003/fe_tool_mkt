@@ -4,7 +4,7 @@ import "../assets/css/statistics.css";
 import "../assets/css/sync.css";
 import { getStoredUser } from "../services/authService";
 import { listJobs, createSync, cancelJob } from "../services/syncService";
-import { listAccounts } from "../services/platformAccountService";
+import { listAccounts, connectAnalyticsSession } from "../services/platformAccountService";
 import { usePolling } from "../hooks/usePolling";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
@@ -68,12 +68,17 @@ export default function SyncJobs({ onLogout }) {
     const [showModal, setShowModal] = useState(false);
     const [confirmLogout, setConfirmLogout] = useState(false);
 
-    // Form
+    // Form sync
     const [platformAccountId, setPlatformAccountId] = useState("");
     const [dateFrom, setDateFrom] = useState("2026-07-01");
     const [dateTo, setDateTo] = useState("2026-07-16");
     const [forceRefresh, setForceRefresh] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
+    // TikTok Analytics Session
+    const [analyticsAccountId, setAnalyticsAccountId] = useState("");
+    const [connectingSession, setConnectingSession] = useState(false);
+    const [sessionResult, setSessionResult] = useState(null); // { status, message }
 
     const user = getStoredUser();
 
@@ -93,8 +98,34 @@ export default function SyncJobs({ onLogout }) {
         listAccounts().then((res) => {
             setAccounts(res || []);
             if (res && res.length > 0) setPlatformAccountId(res[0].id);
+            // Chọn mặc định tài khoản TikTok đầu tiên để kết nối session
+            const firstTikTok = (res || []).find(a => a.platform === "TIKTOK");
+            if (firstTikTok) setAnalyticsAccountId(firstTikTok.id);
         }).catch(console.error);
     }, [fetchJobs]);
+
+    const handleConnectAnalytics = async () => {
+        if (!analyticsAccountId) {
+            setSessionResult({ status: "error", message: "Vui lòng chọn tài khoản TikTok để kết nối." });
+            return;
+        }
+        setConnectingSession(true);
+        setSessionResult(null);
+        try {
+            const res = await connectAnalyticsSession(analyticsAccountId);
+            if (res?.status === "VALID") {
+                setSessionResult({ status: "success", message: " Kết nối thành công! Session TikTok Analytics đã được lưu. Bây giờ có thể chạy đồng bộ để lấy dữ liệu nâng cao." });
+            } else if (res?.status === "REQUIRES_LOGIN") {
+                setSessionResult({ status: "warn", message: " Trình duyệt đã mở — vui lòng đăng nhập TikTok Studio trong cửa sổ vừa hiện ra, sau đó bấm lại." });
+            } else {
+                setSessionResult({ status: "warn", message: `Trạng thái: ${res?.status || "Không rõ"}` });
+            }
+        } catch (err) {
+            setSessionResult({ status: "error", message: `Lỗi kết nối: ${err.message || "Không thể kết nối backend."}` });
+        } finally {
+            setConnectingSession(false);
+        }
+    };
 
     // Check if any job is RUNNING or QUEUED to enable polling
     const hasActiveJob = jobs.some(j => j.status === "RUNNING" || j.status === "QUEUED");
@@ -172,6 +203,65 @@ export default function SyncJobs({ onLogout }) {
                     <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
                     <h1 className="page-title">Nhật ký Đồng bộ Dữ liệu (Sync Jobs)</h1>
                     <p className="page-desc">Theo dõi tiến trình cào dữ liệu chỉ số từ các nền tảng mạng xã hội.</p>
+
+                    <section className="panel" style={{ marginTop: "24px", padding: "20px 24px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                            <h2 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "var(--ink)" }}>Kết nối TikTok Analytics (Dữ liệu Nâng cao)</h2>
+                        </div>
+                        <p style={{ fontSize: "13px", color: "var(--ink-soft)", margin: "0 0 16px" }}>
+                            Để lấy các chỉ số nâng cao (Người xem, Thời gian xem, Tỷ lệ hoàn thành, Nhân khẩu học...), cần đăng nhập TikTok Studio qua trình duyệt.
+                            Nhấn nút bên dưới — server sẽ mở cửa sổ trình duyệt để bạn đăng nhập, session sẽ được lưu lại cho các lần đồng bộ tiếp theo.
+                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                            <select
+                                value={analyticsAccountId}
+                                onChange={(e) => setAnalyticsAccountId(e.target.value)}
+                                style={{ border: "1px solid var(--line)", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", background: "var(--panel)", color: "var(--ink)", minWidth: "220px" }}
+                            >
+                                <option value="">-- Chọn tài khoản TikTok --</option>
+                                {accounts.filter(a => a.platform === "TIKTOK").map(acc => (
+                                    <option key={acc.id} value={acc.id}>[TikTok] {acc.accountName}</option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={handleConnectAnalytics}
+                                disabled={connectingSession || !analyticsAccountId}
+                                style={{
+                                    background: connectingSession ? "#555" : "#fe2c55",
+                                    color: "#fff",
+                                    fontWeight: "700",
+                                    padding: "8px 20px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    cursor: connectingSession ? "not-allowed" : "pointer",
+                                    fontSize: "13px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px"
+                                }}
+                            >
+                                {connectingSession ? (
+                                    <><span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> Đang mở trình duyệt...</>
+                                ) : (
+                                    <>Kết nối TikTok Analytics</>
+                                )}
+                            </button>
+                        </div>
+                        {sessionResult && (
+                            <div style={{
+                                marginTop: "14px",
+                                padding: "10px 16px",
+                                borderRadius: "8px",
+                                fontSize: "13px",
+                                fontWeight: "500",
+                                background: sessionResult.status === "success" ? "#e6f9ee" : sessionResult.status === "error" ? "#fde8e8" : "#fff8e1",
+                                color: sessionResult.status === "success" ? "#1a7c3a" : sessionResult.status === "error" ? "#c0392b" : "#856404",
+                                border: `1px solid ${sessionResult.status === "success" ? "#a8d5b5" : sessionResult.status === "error" ? "#f0b8b8" : "#ffd56b"}`
+                            }}>
+                                {sessionResult.message}
+                            </div>
+                        )}
+                    </section>
 
                     <section className="panel" style={{ marginTop: "24px" }}>
                         <div className="table-wrap">

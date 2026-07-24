@@ -101,22 +101,58 @@ export default function PlatformAccounts({ onLogout }) {
         const params = new URLSearchParams(location.search);
         const success = params.get("success");
         const error = params.get("error");
+        const isPopup = window.opener && window.opener !== window;
+
         if (success) {
             const saved = params.get("saved") || "0";
-            window.history.replaceState({}, "", "/accounts");
-            alert(`Đã liên kết ${success === "facebook" ? "Facebook" : "TikTok"} thành công (${saved} tài khoản).`);
-            fetchAccounts();
+            if (isPopup) {
+                window.opener.postMessage({ type: "OAUTH_SUCCESS", platform: success, saved }, window.location.origin);
+                window.close();
+            } else {
+                window.history.replaceState({}, "", "/accounts");
+                alert(`Đã liên kết ${success === "facebook" ? "Facebook" : "TikTok"} thành công (${saved} tài khoản).`);
+                fetchAccounts();
+            }
         } else if (error) {
-            window.history.replaceState({}, "", "/accounts");
-            alert(`Liên kết thất bại: ${error}`);
+            if (isPopup) {
+                window.opener.postMessage({ type: "OAUTH_ERROR", error }, window.location.origin);
+                window.close();
+            } else {
+                window.history.replaceState({}, "", "/accounts");
+                alert(`Liên kết thất bại: ${error}`);
+            }
         }
     }, [location.search]);
+
+    useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type === "OAUTH_SUCCESS") {
+                alert(`Đã liên kết ${event.data.platform === "facebook" ? "Facebook" : "TikTok"} thành công (${event.data.saved} tài khoản).`);
+                fetchAccounts();
+            } else if (event.data?.type === "OAUTH_ERROR") {
+                alert(`Liên kết thất bại: ${event.data.error}`);
+            }
+        };
+        window.addEventListener("message", handleMessage);
+        return () => window.removeEventListener("message", handleMessage);
+    }, []);
 
     const handleOAuthConnect = async (targetPlatform) => {
         try {
             const { url } = await getOAuthUrl(targetPlatform);
             if (!url) throw new Error("Backend không trả về URL đăng nhập.");
-            window.location.assign(url);
+            
+            const width = 600;
+            const height = 650;
+            const left = window.screen.width / 2 - width / 2;
+            const top = window.screen.height / 2 - height / 2;
+            
+            window.open(
+                url,
+                `Kết nối ${targetPlatform}`,
+                `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+            );
         } catch (err) {
             alert(`Không thể bắt đầu liên kết ${targetPlatform}: ${err.message}`);
         }

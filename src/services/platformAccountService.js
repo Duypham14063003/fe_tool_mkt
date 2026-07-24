@@ -35,3 +35,11 @@ export async function getSessionStatus(id) {
 export async function getOAuthUrl(platform) {
     return apiGet(`/auth/${platform.toLowerCase()}/url`);
 }
+
+/**
+ * Kích hoạt session đăng nhập TikTok Analytics (Playwright mở trình duyệt)
+ * Trả về { status: 'VALID' | 'REQUIRES_LOGIN' }
+ */
+export async function connectAnalyticsSession(platformAccountId) {
+    return apiPost(`/platform-accounts/${platformAccountId}/analytics-session/connect`, {});
+}
