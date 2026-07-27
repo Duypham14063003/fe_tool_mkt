@@ -117,8 +117,6 @@ export default function Posts({ onLogout }) {
     const [posts, setPosts] = useState([]);
     const [meta, setMeta] = useState({ page: 1, limit: 100, totalPages: 1 });
     const [platformFilter, setPlatformFilter] = useState("FACEBOOK");
-    const [searchQuery, setSearchQuery] = useState("");
-    
     // Tài khoản
     const [accounts, setAccounts] = useState([]);
     const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -212,13 +210,12 @@ export default function Posts({ onLogout }) {
         getMetricHistory(post.id).then(setHistory).catch(() => setHistory([]));
     };
 
-    // Lọc theo từ khóa & ngày áp dụng
+    // Lọc theo ngày áp dụng
     const filteredPosts = posts.filter(p => {
-        const matchesSearch = !searchQuery || (p.caption || "").toLowerCase().includes(searchQuery.toLowerCase());
         const postDate = new Date(p.publishedAt);
         const matchesFrom = !appliedDateFrom || postDate >= new Date(appliedDateFrom);
         const matchesTo = !appliedDateTo || postDate <= new Date(appliedDateTo + "T23:59:59");
-        return matchesSearch && matchesFrom && matchesTo;
+        return matchesFrom && matchesTo;
     });
 
     // Tính toán hàng tổng cộng (Total Row)
@@ -267,7 +264,7 @@ export default function Posts({ onLogout }) {
             <aside className="sidebar">
                 <div className="brand">
                     <div className="logo"><BrandLogo className="brand-logo" /></div>
-                    <div className="brand-sub">INTERNAL DATABASE</div>
+                    <div className="brand-sub">MARKETING TOOL</div>
                 </div>
 
                 <nav className="nav">
@@ -291,19 +288,6 @@ export default function Posts({ onLogout }) {
             </aside>
 
             <main className="main">
-                <header className="topbar">
-                    <div className="topbar-right">
-                        <div className="search">
-                            <input
-                                type="text"
-                                placeholder="Tìm theo caption..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </header>
-
                 <div className="content" style={{ padding: "32px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
                         <div>

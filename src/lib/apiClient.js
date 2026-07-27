@@ -285,15 +285,6 @@ async function handleMockRequest(path, body, queryParams = {}, method = "GET") {
         };
     }
 
-    if (path === "/auth/forgot-password") {
-        const { email } = body;
-        if (!email) {
-            throw new ApiError("Vui lòng nhập địa chỉ email.", 400, null);
-        }
-        // In production the backend calls Odoo /web/reset_password
-        // which sends the reset link email. Here we simulate success.
-        return { message: "Nếu địa chỉ email tồn tại trong hệ thống, bạn sẽ nhận được email đặt lại mật khẩu trong vài phút." };
-    }
 
     if (path === "/api/stats/summary") {
         const platform = queryParams.platform || "facebook";
