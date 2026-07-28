@@ -33,6 +33,13 @@ function formatDuration(sec) {
     return `${mins}m${secs}s`;
 }
 
+function formatBreakdown(items = [], suffix = "%") {
+    if (!Array.isArray(items) || items.length === 0) return "--";
+    return items
+        .map((item) => `${item.label}: ${String(item.value).includes("%") || !suffix ? item.value : `${item.value}${suffix}`}`)
+        .join(", ");
+}
+
 /**
  * Xuất dữ liệu bảng trực tiếp ra PDF hoặc Excel chuẩn 100%
  */
@@ -152,6 +159,7 @@ export function exportPostsToExcel(posts = [], totals = null, platform = "ALL") 
     const dataRows = posts.map((p, index) => {
         const m = p.metrics?.[0] || {};
         const raw = m.rawData || {};
+        const studio = raw.studioAnalytics || {};
 
         return {
             "STT": index + 1,
@@ -174,6 +182,11 @@ export function exportPostsToExcel(posts = [], totals = null, platform = "ALL") 
             "Nữ": m.femaleRate ? `${Number(m.femaleRate)}%` : "--",
             "Độ tuổi chính": m.mainAgeGroup || "--",
             "Khu vực chính": m.mainLocation || "Việt Nam",
+            "Nguồn traffic chi tiết": formatBreakdown(studio.trafficSources),
+            "Khác giới tính": studio.otherGenderRate != null ? `${Number(studio.otherGenderRate)}%` : "--",
+            "Phân bố tuổi": formatBreakdown(studio.ageGroups),
+            "Phân bố vị trí": formatBreakdown(studio.locations),
+            "Từ khóa bình luận": formatBreakdown(studio.commentKeywords, ""),
         };
     });
 
@@ -199,6 +212,11 @@ export function exportPostsToExcel(posts = [], totals = null, platform = "ALL") 
             "Nữ": "--",
             "Độ tuổi chính": "--",
             "Khu vực chính": "--",
+            "Nguồn traffic chi tiết": "--",
+            "Khác giới tính": "--",
+            "Phân bố tuổi": "--",
+            "Phân bố vị trí": "--",
+            "Từ khóa bình luận": "--",
         });
     }
 

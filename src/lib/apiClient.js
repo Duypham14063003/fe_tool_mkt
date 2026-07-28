@@ -4,6 +4,56 @@
 // without touching code — set VITE_API_BASE_URL in .env / .env.local.
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const ACCESS_TOKEN_KEY = "19t_access_token";
+const REFRESH_TOKEN_KEY = "19t_refresh_token";
+let refreshPromise = null;
+
+function authStorage() {
+    if (localStorage.getItem(REFRESH_TOKEN_KEY)) return localStorage;
+    if (sessionStorage.getItem(REFRESH_TOKEN_KEY)) return sessionStorage;
+    return null;
+}
+
+async function refreshAccessToken() {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+        const store = authStorage();
+        const refreshToken = store?.getItem(REFRESH_TOKEN_KEY);
+        if (!store || !refreshToken) return null;
+
+        const response = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+        });
+        if (!response.ok) {
+            store.removeItem(ACCESS_TOKEN_KEY);
+            store.removeItem(REFRESH_TOKEN_KEY);
+            return null;
+        }
+        const tokens = await response.json();
+        if (!tokens?.accessToken) return null;
+        store.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+        if (tokens.refreshToken) store.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+        return tokens.accessToken;
+    })().finally(() => {
+        refreshPromise = null;
+    });
+    return refreshPromise;
+}
+
+async function fetchWithAuthRetry(url, options, path) {
+    let response = await fetch(url, options);
+    if (response.status !== 401 || path === "/auth/login" || path === "/auth/refresh") {
+        return response;
+    }
+    const accessToken = await refreshAccessToken();
+    if (!accessToken) return response;
+    const headers = new Headers(options.headers || {});
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    response = await fetch(url, { ...options, headers });
+    return response;
+}
 
 export class ApiError extends Error {
     constructor(message, status, payload) {
@@ -46,11 +96,11 @@ export async function apiPost(path, body) {
 
     let response;
     try {
-        response = await fetch(url, {
+        response = await fetchWithAuthRetry(url, {
             method: "POST",
             headers: headers,
             body: JSON.stringify(body),
-        });
+        }, path);
     } catch (networkErr) {
         console.log(`[apiClient] POST ${url} failed (Expected when backend is offline):`, networkErr.message);
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -95,10 +145,10 @@ export async function apiGet(path, params = {}) {
 
     let response;
     try {
-        response = await fetch(url, {
+        response = await fetchWithAuthRetry(url, {
             method: "GET",
             headers: headers
-        });
+        }, path);
     } catch (networkErr) {
         console.log(`[apiClient] GET ${url} failed (Expected when backend is offline):`, networkErr.message);
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -134,7 +184,7 @@ export async function apiDelete(path) {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     let response;
     try {
-        response = await fetch(url, { method: "DELETE", headers });
+        response = await fetchWithAuthRetry(url, { method: "DELETE", headers }, path);
     } catch (networkErr) {
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
         if (isLocal) return handleMockRequest(path, null, {}, "DELETE");
@@ -155,7 +205,7 @@ export async function apiPatch(path, body) {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     let response;
     try {
-        response = await fetch(url, { method: "PATCH", headers, body: JSON.stringify(body) });
+        response = await fetchWithAuthRetry(url, { method: "PATCH", headers, body: JSON.stringify(body) }, path);
     } catch (networkErr) {
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
         if (isLocal) return handleMockRequest(path, body, {}, "PATCH");

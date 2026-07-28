@@ -45,7 +45,7 @@
 }
 
 .progress-bar-container {
-    width: 100px;
+    width: 120px;
     height: 8px;
     background: var(--line);
     border-radius: 4px;
@@ -58,4 +58,140 @@
     height: 100%;
     background: var(--gold);
     transition: width 0.3s ease;
+}
+
+.job-id-cell {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sync-progress-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 220px;
+}
+
+.progress-percent {
+    min-width: 36px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.progress-count {
+    min-width: 82px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: left;
+}
+
+.sync-log-summary {
+    min-width: 280px;
+    text-align: left;
+}
+
+.sync-log-level {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    margin-bottom: 5px;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.sync-log-level.warn {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.sync-log-level.error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.sync-log-message {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.sync-log-time {
+    margin-top: 2px;
+    color: var(--ink-soft);
+    font-size: 12px;
+}
+
+.sync-log-row td {
+    padding: 0 18px 14px;
+    border-top: 0;
+    background: color-mix(in srgb, var(--panel) 86%, var(--line));
+}
+
+.sync-log-list {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+    max-height: 120px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.sync-log-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sync-log-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sync-log-list::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+    border-radius: 999px;
+}
+
+.sync-log-item {
+    display: grid;
+    grid-template-columns: 8px 72px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink);
+}
+
+.sync-log-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4f46e5;
+}
+
+.sync-log-dot.warn {
+    background: #f97316;
+}
+
+.sync-log-dot.error {
+    background: #ef4444;
+}
+
+.sync-log-item-time {
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+}
+
+.sync-log-item-message {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

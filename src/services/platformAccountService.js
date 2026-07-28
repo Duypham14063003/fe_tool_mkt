@@ -43,3 +43,8 @@ export async function getOAuthUrl(platform) {
 export async function connectAnalyticsSession(platformAccountId) {
     return apiPost(`/platform-accounts/${platformAccountId}/analytics-session/connect`, {});
 }
+
+/** Tạo tài khoản TikTok Studio nếu chưa có và mở luồng lưu phiên đăng nhập. */
+export async function connectTikTokStudioSession() {
+    return apiPost("/platform-accounts/tiktok/studio/connect", {});
+}

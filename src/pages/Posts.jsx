@@ -556,6 +556,8 @@ export default function Posts({ onLogout }) {
                                             <th className="center">Tỷ lệ xem hết</th>
                                             <th className="center">Follow mới</th>
                                             <th className="center">Nguồn chính</th>
+                                            <th className="center">Người xem mới</th>
+                                            <th className="center">Người xem quay lại</th>
                                             <th className="center">Nam</th>
                                             <th className="center">Nữ</th>
                                             <th className="center">Độ tuổi chính</th>
@@ -580,13 +582,15 @@ export default function Posts({ onLogout }) {
                                                     <td className="center">{m.saves ? Number(m.saves).toLocaleString() : 0}</td>
                                                     <td className="center">{formatDuration(m.totalWatchTimeSeconds)}</td>
                                                     <td className="center">{m.averageWatchTimeSeconds ? `${Number(m.averageWatchTimeSeconds).toFixed(1)}s` : "--"}</td>
-                                                    <td className="center">{m.completionRate ? `${Number(m.completionRate).toFixed(1)}%` : "--"}</td>
-                                                    <td className="center">{m.newFollowers ? Number(m.newFollowers) : 0}</td>
-                                                    <td className="center">{m.trafficSource || raw.reach_type || "Đề xuất"}</td>
-                                                    <td className="center">{m.maleRate ? `${Number(m.maleRate)}%` : "--"}</td>
-                                                    <td className="center">{m.femaleRate ? `${Number(m.femaleRate)}%` : "--"}</td>
+                                                    <td className="center">{m.completionRate != null ? `${Number(m.completionRate).toFixed(1)}%` : "--"}</td>
+                                                    <td className="center">{m.newFollowers != null ? Number(m.newFollowers) : "--"}</td>
+                                                    <td className="center">{m.trafficSource || raw.reach_type || "--"}</td>
+                                                    <td className="center">{m.newViewerRate != null ? `${Number(m.newViewerRate).toFixed(1)}%` : "--"}</td>
+                                                    <td className="center">{m.returningViewerRate != null ? `${Number(m.returningViewerRate).toFixed(1)}%` : "--"}</td>
+                                                    <td className="center">{m.maleRate != null ? `${Number(m.maleRate).toFixed(1)}%` : "--"}</td>
+                                                    <td className="center">{m.femaleRate != null ? `${Number(m.femaleRate).toFixed(1)}%` : "--"}</td>
                                                     <td className="center">{m.mainAgeGroup || "--"}</td>
-                                                    <td className="center">{m.mainLocation || "Việt Nam"}</td>
+                                                    <td className="center">{m.mainLocation || "--"}</td>
                                                 </tr>
                                             );
                                         })}
@@ -604,7 +608,7 @@ export default function Posts({ onLogout }) {
                                             <td className="center">--</td>
                                             <td className="center">--</td>
                                             <td className="center">{totals.newFollowers}</td>
-                                            <td colSpan={5} className="center">--</td>
+                                            <td colSpan={7} className="center">--</td>
                                         </tr>
                                     </tbody>
                                 </table>

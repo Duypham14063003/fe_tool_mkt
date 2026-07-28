@@ -60,6 +60,14 @@ const NAV_ITEMS = [
     { icon: <IconGear />, label: "Cài đặt", to: "/settings" },
 ];
 
+function getLatestLog(job) {
+    return [...(job.logs || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+}
+
+function getProgress(job) {
+    return Math.max(0, Math.min(100, Number(job.progress || 0)));
+}
+
 export default function SyncJobs({ onLogout }) {
     const location = useLocation();
     const [jobs, setJobs] = useState([]);
@@ -210,7 +218,7 @@ export default function SyncJobs({ onLogout }) {
                         </div>
                         <p style={{ fontSize: "13px", color: "var(--ink-soft)", margin: "0 0 16px" }}>
                             Để lấy các chỉ số nâng cao (Người xem, Thời gian xem, Tỷ lệ hoàn thành, Nhân khẩu học...), cần đăng nhập TikTok Studio qua trình duyệt.
-                            Nhấn nút bên dưới — server sẽ mở cửa sổ trình duyệt để bạn đăng nhập, session sẽ được lưu lại cho các lần đồng bộ tiếp theo.
+                            Nút này chỉ dùng khi cần đăng nhập lại; các lượt đồng bộ sẽ chạy trong nền và không bật tab trình duyệt.
                         </p>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                             <select
@@ -277,15 +285,24 @@ export default function SyncJobs({ onLogout }) {
                                             <th>Loại Job</th>
                                             <th>Trạng thái</th>
                                             <th>Tiến độ</th>
+                                            <th>Đang scan tới đâu</th>
                                             <th>Khoảng thời gian</th>
                                             <th>Thời gian tạo</th>
                                             <th>Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {jobs.map((job) => (
-                                            <tr key={job.id}>
-                                                <td className="center font-bold">{job.id}</td>
+                                        {jobs.map((job) => {
+                                            const latestLog = getLatestLog(job);
+                                            const progress = getProgress(job);
+                                            const jobLogs = [...(job.logs || [])]
+                                                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                                ;
+
+                                            return (
+                                            <React.Fragment key={job.id}>
+                                            <tr>
+                                                <td className="center font-bold job-id-cell">{job.id}</td>
                                                 <td className="center">{job.jobType}</td>
                                                 <td className="center">
                                                     <span className={`sync-status-pill ${job.status.toLowerCase()}`}>
@@ -293,14 +310,32 @@ export default function SyncJobs({ onLogout }) {
                                                     </span>
                                                 </td>
                                                 <td className="center">
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center" }}>
+                                                    <div className="sync-progress-cell">
                                                         <div className="progress-bar-container">
-                                                            <div className="progress-bar-fill" style={{ width: `${job.progress}%` }}></div>
+                                                            <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
                                                         </div>
-                                                        <span>{job.progress}%</span>
+                                                        <span className="progress-percent">{progress}%</span>
+                                                        <span className="progress-count">
+                                                            {job.totalItems ? `${job.processedItems || 0}/${job.totalItems}` : "Đang dò dữ liệu"}
+                                                        </span>
                                                     </div>
                                                 </td>
-                                                <td className="center">{job.dateFrom} → {job.dateTo}</td>
+                                                <td className="sync-log-summary">
+                                                    <div className={`sync-log-level ${(latestLog?.level || "INFO").toLowerCase()}`}>
+                                                        {latestLog?.level || "INFO"}
+                                                    </div>
+                                                    <div>
+                                                        <div className="sync-log-message">
+                                                            {latestLog?.message || "Đang chờ worker nhận job"}
+                                                        </div>
+                                                        {latestLog?.createdAt && (
+                                                            <div className="sync-log-time">
+                                                                {new Date(latestLog.createdAt).toLocaleString("vi-VN")}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="center">{new Date(job.dateFrom).toLocaleDateString("vi-VN")} → {new Date(job.dateTo).toLocaleDateString("vi-VN")}</td>
                                                 <td className="center">{new Date(job.createdAt).toLocaleString("vi-VN")}</td>
                                                 <td className="center">
                                                     {(job.status === "RUNNING" || job.status === "QUEUED") && (
@@ -308,7 +343,24 @@ export default function SyncJobs({ onLogout }) {
                                                     )}
                                                 </td>
                                             </tr>
-                                        ))}
+                                            {jobLogs.length > 0 && (
+                                                <tr className="sync-log-row">
+                                                    <td colSpan="8">
+                                                        <div className="sync-log-list">
+                                                            {jobLogs.map((log) => (
+                                                                <div className="sync-log-item" key={log.id}>
+                                                                    <span className={`sync-log-dot ${(log.level || "INFO").toLowerCase()}`}></span>
+                                                                    <span className="sync-log-item-time">{new Date(log.createdAt).toLocaleTimeString("vi-VN")}</span>
+                                                                    <span className="sync-log-item-message">{log.message}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </React.Fragment>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}

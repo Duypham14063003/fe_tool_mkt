@@ -9,7 +9,8 @@ import {
     deleteAccount,
     testConnection,
     reconnect,
-    getOAuthUrl
+    getOAuthUrl,
+    connectTikTokStudioSession
 } from "../services/platformAccountService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
@@ -78,6 +79,7 @@ export default function PlatformAccounts({ onLogout }) {
     const [externalAccountId, setExternalAccountId] = useState("");
     const [accessToken, setAccessToken] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [connectingTikTokStudio, setConnectingTikTokStudio] = useState(false);
 
     const user = getStoredUser();
 
@@ -140,6 +142,18 @@ export default function PlatformAccounts({ onLogout }) {
 
     const handleOAuthConnect = async (targetPlatform) => {
         try {
+            if (targetPlatform === "TIKTOK") {
+                setConnectingTikTokStudio(true);
+                const result = await connectTikTokStudioSession();
+                if (result?.status === "VALID") {
+                    alert("Đã kết nối và lưu phiên TikTok Studio thành công.");
+                    await fetchAccounts();
+                } else {
+                    alert(result?.message || "Chưa hoàn tất đăng nhập TikTok Studio. Hãy thử lại.");
+                }
+                return;
+            }
+
             const { url } = await getOAuthUrl(targetPlatform);
             if (!url) throw new Error("Backend không trả về URL đăng nhập.");
             
@@ -155,6 +169,8 @@ export default function PlatformAccounts({ onLogout }) {
             );
         } catch (err) {
             alert(`Không thể bắt đầu liên kết ${targetPlatform}: ${err.message}`);
+        } finally {
+            if (targetPlatform === "TIKTOK") setConnectingTikTokStudio(false);
         }
     };
 
@@ -241,7 +257,9 @@ export default function PlatformAccounts({ onLogout }) {
                 <header className="topbar">
                     <div className="topbar-right" style={{ display: "flex", gap: "10px" }}>
                         <button className="btn-outline" onClick={() => handleOAuthConnect("FACEBOOK")}>Kết nối Facebook</button>
-                        <button className="btn-primary" onClick={() => handleOAuthConnect("TIKTOK")}>Kết nối TikTok</button>
+                        <button className="btn-primary" disabled={connectingTikTokStudio} onClick={() => handleOAuthConnect("TIKTOK")}>
+                            {connectingTikTokStudio ? "Đang chờ đăng nhập..." : "Kết nối TikTok Studio"}
+                        </button>
                     </div>
                 </header>
 
