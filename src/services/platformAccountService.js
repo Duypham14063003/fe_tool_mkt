@@ -46,5 +46,5 @@ export async function connectAnalyticsSession(platformAccountId) {
 
 /** Tạo tài khoản TikTok Studio nếu chưa có và mở luồng lưu phiên đăng nhập. */
 export async function connectTikTokStudioSession() {
-    return apiPost("/platform-accounts/tiktok/studio/connect", {});
+    return apiPost("/platform-accounts/tiktok/connect-full", {});
 }

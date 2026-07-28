@@ -7,6 +7,7 @@ import SyncJobs from "./pages/SyncJobs";
 import Posts from "./pages/Posts";
 import Settings from "./pages/Settings";
 import { isLoggedIn, logout } from "./services/authService";
+import "./assets/css/responsive.css";
 
 function ProtectedRoute({ children }) {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
