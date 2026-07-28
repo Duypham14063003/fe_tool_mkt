@@ -230,7 +230,7 @@ export default function PlatformAccounts({ onLogout }) {
             <aside className="sidebar">
                 <div className="brand">
                     <div className="logo"><BrandLogo className="brand-logo" /></div>
-                    <div className="brand-sub">INTERNAL DATABASE</div>
+                    <div className="brand-sub">MARKETING TOOL</div>
                 </div>
 
                 <nav className="nav">

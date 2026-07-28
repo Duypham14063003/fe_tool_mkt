@@ -99,7 +99,7 @@ export default function Dashboard({ onLogout }) {
                     <div className="logo">
                         <BrandLogo className="brand-logo" />
                     </div>
-                    <div className="brand-sub">INTERNAL DATABASE</div>
+                    <div className="brand-sub">MARKETING TOOL</div>
                 </div>
 
                 <nav className="nav">
