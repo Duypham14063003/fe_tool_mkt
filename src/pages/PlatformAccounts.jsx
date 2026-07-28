@@ -145,11 +145,11 @@ export default function PlatformAccounts({ onLogout }) {
             if (targetPlatform === "TIKTOK") {
                 setConnectingTikTokStudio(true);
                 const result = await connectTikTokStudioSession();
+                await fetchAccounts();
                 if (result?.status === "VALID") {
                     alert("Đã kết nối và lưu phiên TikTok Studio thành công.");
-                    await fetchAccounts();
                 } else {
-                    alert(result?.message || "Chưa hoàn tất đăng nhập TikTok Studio. Hãy thử lại.");
+                    alert(result?.message || "Hãy hoàn tất đăng nhập TikTok Studio rồi thử lại.");
                 }
                 return;
             }
