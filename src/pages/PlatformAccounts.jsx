@@ -7,9 +7,11 @@ import {
     listAccounts,
     createAccount,
     deleteAccount,
+    updateAccount,
     testConnection,
     reconnect,
     getOAuthUrl,
+    connectAnalyticsSession,
     connectTikTokStudioSession
 } from "../services/platformAccountService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
@@ -46,13 +48,6 @@ const IconGear = () => (
         <path d="M9 2.6v1.6M9 13.8v1.6M15.4 9h-1.6M4.2 9H2.6M13.2 4.8l-1.1 1.1M5.9 12.1l-1.1 1.1M13.2 13.2l-1.1-1.1M5.9 5.9 4.8 4.8" strokeLinecap="round" />
     </svg>
 );
-const IconHelp = () => (
-    <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="6.7" />
-        <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
-        <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
-    </svg>
-);
 const IconLogout = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M7 15.5H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h3" strokeLinecap="round" />
@@ -80,6 +75,10 @@ export default function PlatformAccounts({ onLogout }) {
     const [accessToken, setAccessToken] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [connectingTikTokStudio, setConnectingTikTokStudio] = useState(false);
+    const [openAccountMenu, setOpenAccountMenu] = useState("");
+    const [renamingAccount, setRenamingAccount] = useState(null);
+    const [renameValue, setRenameValue] = useState("");
+    const [renaming, setRenaming] = useState(false);
 
     const user = getStoredUser();
 
@@ -145,11 +144,11 @@ export default function PlatformAccounts({ onLogout }) {
             if (targetPlatform === "TIKTOK") {
                 setConnectingTikTokStudio(true);
                 const result = await connectTikTokStudioSession();
+                await fetchAccounts();
                 if (result?.status === "VALID") {
                     alert("Đã kết nối và lưu phiên TikTok Studio thành công.");
-                    await fetchAccounts();
                 } else {
-                    alert(result?.message || "Chưa hoàn tất đăng nhập TikTok Studio. Hãy thử lại.");
+                    alert(result?.message || "Hãy hoàn tất đăng nhập TikTok Studio rồi thử lại.");
                 }
                 return;
             }
@@ -205,9 +204,13 @@ export default function PlatformAccounts({ onLogout }) {
         }
     };
 
-    const handleReconnect = async (id) => {
+    const handleReconnect = async (account) => {
         try {
-            await reconnect(id);
+            if (account.platform === "TIKTOK") {
+                await connectAnalyticsSession(account.id);
+            } else {
+                await reconnect(account.id);
+            }
             alert("Đã kết nối lại tài khoản.");
             fetchAccounts();
         } catch (err) {
@@ -222,6 +225,29 @@ export default function PlatformAccounts({ onLogout }) {
             fetchAccounts();
         } catch (err) {
             alert("Lỗi khi xóa: " + err.message);
+        }
+    };
+
+    const openRenameModal = (account) => {
+        setOpenAccountMenu("");
+        setRenamingAccount(account);
+        setRenameValue(account.accountName || "");
+    };
+
+    const handleRename = async (event) => {
+        event.preventDefault();
+        const accountName = renameValue.trim();
+        if (!accountName || !renamingAccount) return;
+        setRenaming(true);
+        try {
+            await updateAccount(renamingAccount.id, { accountName });
+            setRenamingAccount(null);
+            setRenameValue("");
+            fetchAccounts();
+        } catch (err) {
+            alert(`Không thể đổi tên tài khoản: ${err.message}`);
+        } finally {
+            setRenaming(false);
         }
     };
 
@@ -248,7 +274,6 @@ export default function PlatformAccounts({ onLogout }) {
                 </nav>
 
                 <div className="sidebar-bottom">
-                    <a href="#" className="nav-item"><span className="nav-icon"><IconHelp /></span> Hỗ trợ</a>
                     <a href="#" className="nav-item" onClick={(e) => { e.preventDefault(); setConfirmLogout(true); }}><span className="nav-icon"><IconLogout /></span> Đăng xuất</a>
                 </div>
             </aside>
@@ -258,7 +283,7 @@ export default function PlatformAccounts({ onLogout }) {
                     <div className="topbar-right" style={{ display: "flex", gap: "10px" }}>
                         <button className="btn-outline" onClick={() => handleOAuthConnect("FACEBOOK")}>Kết nối Facebook</button>
                         <button className="btn-primary" disabled={connectingTikTokStudio} onClick={() => handleOAuthConnect("TIKTOK")}>
-                            {connectingTikTokStudio ? "Đang chờ đăng nhập..." : "Kết nối TikTok Studio"}
+                            {connectingTikTokStudio ? "Đang chờ đăng nhập..." : "+ Thêm tài khoản TikTok"}
                         </button>
                     </div>
                 </header>
@@ -281,9 +306,30 @@ export default function PlatformAccounts({ onLogout }) {
                                             <span className={`account-platform-badge ${acc.platform.toLowerCase()}`}>
                                                 {acc.platform}
                                             </span>
-                                            <span className={`account-status-badge ${acc.connectionStatus.toLowerCase()}`}>
-                                                <i>●</i> {acc.connectionStatus}
-                                            </span>
+                                            <div className="account-card-header-actions">
+                                                <span className={`account-status-badge ${acc.connectionStatus.toLowerCase()}`}>
+                                                    <i>●</i> {acc.connectionStatus}
+                                                </span>
+                                                {acc.platform === "TIKTOK" && (
+                                                    <div className="account-more-wrap">
+                                                        <button
+                                                            type="button"
+                                                            className="account-more-btn"
+                                                            aria-label={`Tùy chọn cho ${acc.accountName}`}
+                                                            onClick={() => setOpenAccountMenu((id) => id === acc.id ? "" : acc.id)}
+                                                        >
+                                                            ⋯
+                                                        </button>
+                                                        {openAccountMenu === acc.id && (
+                                                            <div className="account-more-menu">
+                                                                <button type="button" onClick={() => openRenameModal(acc)}>
+                                                                    Đổi tên
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="account-name">{acc.accountName}</div>
                                         <div className="account-id">ID: {acc.externalAccountId}</div>
@@ -297,7 +343,7 @@ export default function PlatformAccounts({ onLogout }) {
                                     <div className="account-actions">
                                         <button className="btn-outline small-btn" onClick={() => handleTest(acc.id)}>Test</button>
                                         {acc.connectionStatus !== "CONNECTED" && (
-                                            <button className="btn-primary small-btn" onClick={() => handleReconnect(acc.id)}>Kết nối lại</button>
+                                            <button className="btn-primary small-btn" onClick={() => handleReconnect(acc)}>Kết nối lại</button>
                                         )}
                                         <button className="btn-text small-btn" style={{ color: "var(--error)" }} onClick={() => handleDelete(acc.id)}>Xóa</button>
                                     </div>
@@ -336,6 +382,35 @@ export default function PlatformAccounts({ onLogout }) {
                                 <button type="button" className="modal-btn modal-btn-cancel" onClick={() => setShowModal(false)}>Hủy</button>
                                 <button type="submit" className="modal-btn modal-btn-confirm" disabled={submitting}>
                                     {submitting ? "Đang lưu..." : "Lưu tài khoản"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {renamingAccount && (
+                <div className="modal-backdrop" onClick={() => setRenamingAccount(null)}>
+                    <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+                        <h2 className="modal-title">Đổi tên tài khoản TikTok</h2>
+                        <form onSubmit={handleRename} style={{ marginTop: "16px" }}>
+                            <div className="form-group">
+                                <label>Tên tài khoản mới</label>
+                                <input
+                                    type="text"
+                                    required
+                                    autoFocus
+                                    maxLength={120}
+                                    value={renameValue}
+                                    onChange={(event) => setRenameValue(event.target.value)}
+                                />
+                            </div>
+                            <div className="modal-actions" style={{ marginTop: "24px" }}>
+                                <button type="button" className="modal-btn modal-btn-cancel" onClick={() => setRenamingAccount(null)}>
+                                    Hủy
+                                </button>
+                                <button type="submit" className="modal-btn modal-btn-confirm" disabled={renaming || !renameValue.trim()}>
+                                    {renaming ? "Đang lưu..." : "Lưu tên"}
                                 </button>
                             </div>
                         </form>

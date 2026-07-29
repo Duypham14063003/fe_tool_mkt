@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import "../assets/css/statistics.css";
-import { getDashboardSummary } from "../services/dashboardService";
+import "../assets/css/accounts.css";
+import { getDashboardChannels } from "../services/dashboardService";
 import { getStoredUser } from "../services/authService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
@@ -49,13 +50,13 @@ const IconGear = () => (
         />
     </svg>
 );
-const IconHelp = () => (
-    <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="6.7" />
-        <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
-        <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
-    </svg>
-);
+// const IconHelp = () => (
+//     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
+//         <circle cx="9" cy="9" r="6.7" />
+//         <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
+//         <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
+//     </svg>
+// );
 const IconLogout = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M7 15.5H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h3" strokeLinecap="round" />
@@ -69,9 +70,93 @@ const NAV_ITEMS = [
     { icon: <IconGear />, label: "Cài đặt", to: "/settings" },
 ];
 
+function ChannelAccountsTable({ title, platform, accounts = [] }) {
+    const rows = accounts.filter((account) => account.platform === platform);
+    const isFacebook = platform === "FACEBOOK";
+    return (
+        <section className="panel dashboard-channel-panel">
+            <div className="panel-header">
+                <div>
+                    <h2>{title}</h2>
+                    <p className="page-desc">{rows.length} kênh đang được quản lý</p>
+                </div>
+            </div>
+            <div className="table-wrap">
+                {rows.length ? (
+                    <table className="grid-table">
+                        <thead>
+                            <tr>
+                                <th>Tài khoản</th>
+                                <th>Trạng thái</th>
+                                <th>{isFacebook ? "Reach" : "Lượt xem"}</th>
+                                <th>{isFacebook ? "Tương tác" : "Follow mới"}</th>
+                                <th>Đồng bộ gần nhất</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((account) => (
+                                <tr key={account.id}>
+                                    <td>
+                                        <div className="font-bold">{account.accountName}</div>
+                                        <div className="dashboard-account-id">ID: {account.externalAccountId}</div>
+                                    </td>
+                                    <td className="center">{account.connectionStatus}</td>
+                                    <td className="center font-bold">
+                                        {Number(isFacebook ? account.totalReach : account.totalViews).toLocaleString()}
+                                    </td>
+                                    <td className="center font-bold">
+                                        {Number(isFacebook ? account.totalInteractions : account.totalFollowers).toLocaleString()}
+                                    </td>
+                                    <td className="center">
+                                        {account.lastSyncAt ? new Date(account.lastSyncAt).toLocaleString("vi-VN") : "Chưa đồng bộ"}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <div className="dashboard-channel-empty">Chưa có tài khoản {title}.</div>
+                )}
+            </div>
+        </section>
+    );
+}
+
+function PlatformSummary({ title, platform, accounts = [] }) {
+    const rows = accounts.filter((account) => account.platform === platform);
+    const isFacebook = platform === "FACEBOOK";
+    const primaryTotal = rows.reduce(
+        (sum, account) => sum + Number(isFacebook ? account.totalReach : account.totalViews),
+        0,
+    );
+    const secondaryTotal = rows.reduce(
+        (sum, account) => sum + Number(isFacebook ? account.totalInteractions : account.totalFollowers),
+        0,
+    );
+    return (
+        <section className={`platform-summary ${platform.toLowerCase()}`}>
+            <h2>{title}</h2>
+            <div className="platform-summary-stats">
+                <div>
+                    <span>SỐ KÊNH</span>
+                    <strong>{rows.length}</strong>
+                </div>
+                <div>
+                    <span>{isFacebook ? "TỔNG REACH" : "TỔNG LƯỢT XEM"}</span>
+                    <strong>{primaryTotal.toLocaleString()}</strong>
+                </div>
+                <div>
+                    <span>{isFacebook ? "TỔNG TƯƠNG TÁC" : "FOLLOW MỚI"}</span>
+                    <strong>{secondaryTotal.toLocaleString()}</strong>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function Dashboard({ onLogout }) {
     const location = useLocation();
-    const [summary, setSummary] = useState(null);
+    const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
     const [confirmLogout, setConfirmLogout] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -81,9 +166,9 @@ export default function Dashboard({ onLogout }) {
     const avatarChar = displayName.trim().charAt(0).toUpperCase();
 
     useEffect(() => {
-        getDashboardSummary()
+        getDashboardChannels()
             .then((data) => {
-                setSummary(data);
+                setDashboard(data);
                 setLoading(false);
             })
             .catch((err) => {
@@ -117,9 +202,9 @@ export default function Dashboard({ onLogout }) {
                 </nav>
 
                 <div className="sidebar-bottom">
-                    <a href="#" className="nav-item">
-                        <span className="nav-icon"><IconHelp /></span> Hỗ trợ
-                    </a>
+                    {/*<a href="#" className="nav-item">*/}
+                    {/*    <span className="nav-icon"><IconHelp /></span> Hỗ trợ*/}
+                    {/*</a>*/}
                     <a href="#" className="nav-item" onClick={(e) => { e.preventDefault(); setConfirmLogout(true); }}>
                         <span className="nav-icon"><IconLogout /></span> Đăng xuất
                     </a>
@@ -162,45 +247,23 @@ export default function Dashboard({ onLogout }) {
                         <span className="chip">NỘI BỘ</span>
                     </div>
                     <h1 className="page-title">Bảng điều khiển</h1>
-                    <p className="page-desc">Tổng quan các chỉ số đa kênh và hiệu suất làm việc.</p>
+                    <p className="page-desc">Tổng quan số kênh và hiệu suất của từng tài khoản mạng xã hội.</p>
 
                     {loading ? (
                         <div style={{ padding: "40px", textAlign: "center" }}>Đang tải tổng quan...</div>
                     ) : (
-                        <section className="stats-grid" style={{ marginTop: "24px" }}>
-                            <div className="stat-card">
-                                <span className="stat-label">TỔNG SỐ BÀI VIẾT</span>
-                                <div className="stat-value">{summary?.totalPosts ?? 0}</div>
-                            </div>
-                            <div className="stat-card">
-                                <span className="stat-label">TỔNG LƯỢT XEM</span>
-                                <div className="stat-value">{(summary?.totalViews ?? 0).toLocaleString()}</div>
-                            </div>
-                            <div className="stat-card">
-                                <span className="stat-label">NGƯỜI TIẾP CẬN</span>
-                                <div className="stat-value">{(summary?.totalReach ?? 0).toLocaleString()}</div>
-                            </div>
-                            <div className="stat-card">
-                                <span className="stat-label">TỶ LỆ TƯƠNG TÁC</span>
-                                <div className="stat-value">{summary?.engagementRate ?? 0}%</div>
-                            </div>
-                        </section>
+                        <div className="platform-summary-grid">
+                            <PlatformSummary title="Facebook" platform="FACEBOOK" accounts={dashboard?.accounts} />
+                            <PlatformSummary title="TikTok" platform="TIKTOK" accounts={dashboard?.accounts} />
+                        </div>
                     )}
 
-                    <div style={{ marginTop: "32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-                        <div className="panel" style={{ padding: "24px" }}>
-                            <h3>Truy cập nhanh</h3>
-                            <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
-                                <Link to="/posts" className="btn-primary" style={{ textDecoration: "none", display: "inline-block", textAlign: "center" }}>Quản lý Bài viết</Link>
-                                <Link to="/sync" className="btn-outline" style={{ textDecoration: "none", display: "inline-block", textAlign: "center" }}>Đồng bộ dữ liệu</Link>
-                            </div>
+                    {!loading && (
+                        <div className="dashboard-channel-grid">
+                            <ChannelAccountsTable title="Facebook" platform="FACEBOOK" accounts={dashboard?.accounts} />
+                            <ChannelAccountsTable title="TikTok" platform="TIKTOK" accounts={dashboard?.accounts} />
                         </div>
-                        <div className="panel" style={{ padding: "24px" }}>
-                            <h3>Trạng thái hệ thống</h3>
-                            <p style={{ marginTop: "16px", color: "var(--success)" }}>Hoạt động bình thường</p>
-                            <p style={{ marginTop: "8px", fontSize: "13px", color: "var(--ink-soft)" }}>Tất cả các API kết nối với Facebook, TikTok và Odoo đang ở trạng thái ổn định.</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </main>
 

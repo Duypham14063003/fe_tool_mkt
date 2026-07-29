@@ -1,63 +1,58 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, {useState, useEffect, useCallback} from "react";
+import {Link, useLocation} from "react-router-dom";
 import "../assets/css/statistics.css";
 import "../assets/css/sync.css";
-import { getStoredUser } from "../services/authService";
-import { listJobs, createSync, cancelJob } from "../services/syncService";
-import { listAccounts, connectAnalyticsSession } from "../services/platformAccountService";
-import { usePolling } from "../hooks/usePolling";
+import {getStoredUser} from "../services/authService";
+import {listJobs, createSync, cancelJob} from "../services/syncService";
+import {listAccounts} from "../services/platformAccountService";
+import {usePolling} from "../hooks/usePolling";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
-function BrandLogo({ className }) {
+function BrandLogo({className}) {
     const [broken, setBroken] = useState(false);
     if (broken) return <div className={`${className} logo-fallback`}>19T</div>;
-    return <img src={logoImg} alt="19T Digital Logo" className={className} onError={() => setBroken(true)} />;
+    return <img src={logoImg} alt="19T Digital Logo" className={className} onError={() => setBroken(true)}/>;
 }
 
 const IconHome = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M2.5 8.5 9 3l6.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M4 7.5V15h10V7.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M2.5 8.5 9 3l6.5 5.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M4 7.5V15h10V7.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
 );
 const IconChart = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M3 14.5V9M8 14.5V4M13 14.5v-7" strokeLinecap="round" />
-        <path d="M2.5 16h13" strokeLinecap="round" />
+        <path d="M3 14.5V9M8 14.5V4M13 14.5v-7" strokeLinecap="round"/>
+        <path d="M2.5 16h13" strokeLinecap="round"/>
     </svg>
 );
 const IconList = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M6 5h8M6 9h8M6 13h8" strokeLinecap="round" />
-        <circle cx="3" cy="5" r="0.9" fill="currentColor" stroke="none" />
-        <circle cx="3" cy="9" r="0.9" fill="currentColor" stroke="none" />
-        <circle cx="3" cy="13" r="0.9" fill="currentColor" stroke="none" />
+        <path d="M6 5h8M6 9h8M6 13h8" strokeLinecap="round"/>
+        <circle cx="3" cy="5" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="3" cy="9" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="3" cy="13" r="0.9" fill="currentColor" stroke="none"/>
     </svg>
 );
 const IconGear = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="2.6" />
-        <path d="M9 2.6v1.6M9 13.8v1.6M15.4 9h-1.6M4.2 9H2.6M13.2 4.8l-1.1 1.1M5.9 12.1l-1.1 1.1M13.2 13.2l-1.1-1.1M5.9 5.9 4.8 4.8" strokeLinecap="round" />
-    </svg>
-);
-const IconHelp = () => (
-    <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="6.7" />
-        <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
-        <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
+        <circle cx="9" cy="9" r="2.6"/>
+        <path
+            d="M9 2.6v1.6M9 13.8v1.6M15.4 9h-1.6M4.2 9H2.6M13.2 4.8l-1.1 1.1M5.9 12.1l-1.1 1.1M13.2 13.2l-1.1-1.1M5.9 5.9 4.8 4.8"
+            strokeLinecap="round"/>
     </svg>
 );
 const IconLogout = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M7 15.5H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h3" strokeLinecap="round" />
-        <path d="M11.5 12.5 15 9l-3.5-3.5M15 9H6.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7 15.5H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h3" strokeLinecap="round"/>
+        <path d="M11.5 12.5 15 9l-3.5-3.5M15 9H6.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
 );
 
 const NAV_ITEMS = [
-    { icon: <IconHome />, label: "Trang chủ", to: "/dashboard" },
-    { icon: <IconList />, label: "Nội dung", to: "/posts" },
-    { icon: <IconGear />, label: "Cài đặt", to: "/settings" },
+    {icon: <IconHome/>, label: "Trang chủ", to: "/dashboard"},
+    {icon: <IconList/>, label: "Nội dung", to: "/posts"},
+    {icon: <IconGear/>, label: "Cài đặt", to: "/settings"},
 ];
 
 function getLatestLog(job) {
@@ -68,13 +63,14 @@ function getProgress(job) {
     return Math.max(0, Math.min(100, Number(job.progress || 0)));
 }
 
-export default function SyncJobs({ onLogout }) {
+export default function SyncJobs({onLogout}) {
     const location = useLocation();
     const [jobs, setJobs] = useState([]);
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [confirmLogout, setConfirmLogout] = useState(false);
+    const [jobPage, setJobPage] = useState(1);
 
     // Form sync
     const [platformAccountId, setPlatformAccountId] = useState("");
@@ -82,11 +78,6 @@ export default function SyncJobs({ onLogout }) {
     const [dateTo, setDateTo] = useState("2026-07-16");
     const [forceRefresh, setForceRefresh] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-
-    // TikTok Analytics Session
-    const [analyticsAccountId, setAnalyticsAccountId] = useState("");
-    const [connectingSession, setConnectingSession] = useState(false);
-    const [sessionResult, setSessionResult] = useState(null); // { status, message }
 
     const user = getStoredUser();
 
@@ -106,38 +97,20 @@ export default function SyncJobs({ onLogout }) {
         listAccounts().then((res) => {
             setAccounts(res || []);
             if (res && res.length > 0) setPlatformAccountId(res[0].id);
-            // Chọn mặc định tài khoản TikTok đầu tiên để kết nối session
-            const firstTikTok = (res || []).find(a => a.platform === "TIKTOK");
-            if (firstTikTok) setAnalyticsAccountId(firstTikTok.id);
         }).catch(console.error);
     }, [fetchJobs]);
-
-    const handleConnectAnalytics = async () => {
-        if (!analyticsAccountId) {
-            setSessionResult({ status: "error", message: "Vui lòng chọn tài khoản TikTok để kết nối." });
-            return;
-        }
-        setConnectingSession(true);
-        setSessionResult(null);
-        try {
-            const res = await connectAnalyticsSession(analyticsAccountId);
-            if (res?.status === "VALID") {
-                setSessionResult({ status: "success", message: " Kết nối thành công! Session TikTok Analytics đã được lưu. Bây giờ có thể chạy đồng bộ để lấy dữ liệu nâng cao." });
-            } else if (res?.status === "REQUIRES_LOGIN") {
-                setSessionResult({ status: "warn", message: " Trình duyệt đã mở — vui lòng đăng nhập TikTok Studio trong cửa sổ vừa hiện ra, sau đó bấm lại." });
-            } else {
-                setSessionResult({ status: "warn", message: `Trạng thái: ${res?.status || "Không rõ"}` });
-            }
-        } catch (err) {
-            setSessionResult({ status: "error", message: `Lỗi kết nối: ${err.message || "Không thể kết nối backend."}` });
-        } finally {
-            setConnectingSession(false);
-        }
-    };
 
     // Check if any job is RUNNING or QUEUED to enable polling
     const hasActiveJob = jobs.some(j => j.status === "RUNNING" || j.status === "QUEUED");
     usePolling(fetchJobs, 3000, hasActiveJob);
+
+    const jobsPerPage = 5;
+    const totalJobPages = Math.max(1, Math.ceil(jobs.length / jobsPerPage));
+    const paginatedJobs = jobs.slice((jobPage - 1) * jobsPerPage, jobPage * jobsPerPage);
+
+    useEffect(() => {
+        if (jobPage > totalJobPages) setJobPage(totalJobPages);
+    }, [jobPage, totalJobPages]);
 
     const handleCreateSync = async (e) => {
         e.preventDefault();
@@ -176,195 +149,202 @@ export default function SyncJobs({ onLogout }) {
         <div className="app">
             <aside className="sidebar">
                 <div className="brand">
-                    <div className="logo"><BrandLogo className="brand-logo" /></div>
+                    <div className="logo"><BrandLogo className="brand-logo"/></div>
                     <div className="brand-sub">MARKETING TOOL</div>
                 </div>
 
                 <nav className="nav">
                     {NAV_ITEMS.map((item) => (
-                        <Link to={item.to} key={item.label} className={`nav-item${location.pathname === item.to ? " active" : ""}`}>
+                        <Link to={item.to} key={item.label}
+                              className={`nav-item${location.pathname === item.to ? " active" : ""}`}>
                             <span className="nav-icon">{item.icon}</span> {item.label}
                         </Link>
                     ))}
                     <Link to="/accounts" className={`nav-item${location.pathname === "/accounts" ? " active" : ""}`}>
-                        <span className="nav-icon"><IconGear /></span> Tài khoản MXH
+                        <span className="nav-icon"><IconGear/></span> Tài khoản MXH
                     </Link>
                     <Link to="/sync" className={`nav-item${location.pathname === "/sync" ? " active" : ""}`}>
-                        <span className="nav-icon"><IconChart /></span> Đồng bộ
+                        <span className="nav-icon"><IconChart/></span> Đồng bộ
                     </Link>
                 </nav>
 
                 <div className="sidebar-bottom">
-                    <a href="#" className="nav-item"><span className="nav-icon"><IconHelp /></span> Hỗ trợ</a>
-                    <a href="#" className="nav-item" onClick={(e) => { e.preventDefault(); setConfirmLogout(true); }}><span className="nav-icon"><IconLogout /></span> Đăng xuất</a>
+                    <a href="#" className="nav-item" onClick={(e) => {
+                        e.preventDefault();
+                        setConfirmLogout(true);
+                    }}><span className="nav-icon"><IconLogout/></span> Đăng xuất</a>
                 </div>
             </aside>
 
             <main className="main">
                 <header className="topbar">
                     <div className="topbar-right">
-                        <button className="btn-primary" onClick={() => setShowModal(true)}>+ Tạo lượt đồng bộ mới</button>
+                        <button className="btn-primary" onClick={() => setShowModal(true)}>+ Tạo lượt đồng bộ mới
+                        </button>
                     </div>
                 </header>
 
-                <div className="content" style={{ padding: "32px" }}>
+                <div className="content" style={{padding: "32px"}}>
                     <div className="breadcrumb"><span className="chip">NỘI BỘ</span></div>
                     <h1 className="page-title">Nhật ký Đồng bộ Dữ liệu (Sync Jobs)</h1>
                     <p className="page-desc">Theo dõi tiến trình cào dữ liệu chỉ số từ các nền tảng mạng xã hội.</p>
 
-                    <section className="panel" style={{ marginTop: "24px", padding: "20px 24px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                            <h2 style={{ margin: 0, fontSize: "15px", fontWeight: "700", color: "var(--ink)" }}>Kết nối TikTok Analytics (Dữ liệu Nâng cao)</h2>
+                    <section className="panel" style={{marginTop: "24px", padding: "20px 24px"}}>
+                        <div style={{display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px"}}>
+                            <h2 style={{margin: 0, fontSize: "15px", fontWeight: "700", color: "var(--ink)"}}>
+                                Chọn tài khoản đồng bộ
+                            </h2>
                         </div>
-                        <p style={{ fontSize: "13px", color: "var(--ink-soft)", margin: "0 0 16px" }}>
-                            Để lấy các chỉ số nâng cao (Người xem, Thời gian xem, Tỷ lệ hoàn thành, Nhân khẩu học...), cần đăng nhập TikTok Studio qua trình duyệt.
-                            Nút này chỉ dùng khi cần đăng nhập lại; các lượt đồng bộ sẽ chạy trong nền và không bật tab trình duyệt.
+                        <p style={{fontSize: "13px", color: "var(--ink-soft)", margin: "0 0 16px"}}>
+                            Chọn tài khoản mạng xã hội sẽ được sử dụng khi tạo lượt đồng bộ mới.
                         </p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                        <div style={{display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap"}}>
                             <select
-                                value={analyticsAccountId}
-                                onChange={(e) => setAnalyticsAccountId(e.target.value)}
-                                style={{ border: "1px solid var(--line)", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", background: "var(--panel)", color: "var(--ink)", minWidth: "220px" }}
-                            >
-                                <option value="">-- Chọn tài khoản TikTok --</option>
-                                {accounts.filter(a => a.platform === "TIKTOK").map(acc => (
-                                    <option key={acc.id} value={acc.id}>[TikTok] {acc.accountName}</option>
-                                ))}
-                            </select>
-                            <button
-                                onClick={handleConnectAnalytics}
-                                disabled={connectingSession || !analyticsAccountId}
+                                value={platformAccountId}
+                                onChange={(e) => setPlatformAccountId(e.target.value)}
                                 style={{
-                                    background: connectingSession ? "#555" : "#fe2c55",
-                                    color: "#fff",
-                                    fontWeight: "700",
-                                    padding: "8px 20px",
+                                    border: "1px solid var(--line)",
+                                    padding: "8px 12px",
                                     borderRadius: "6px",
-                                    border: "none",
-                                    cursor: connectingSession ? "not-allowed" : "pointer",
                                     fontSize: "13px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "8px"
+                                    background: "var(--panel)",
+                                    color: "var(--ink)",
+                                    minWidth: "220px"
                                 }}
                             >
-                                {connectingSession ? (
-                                    <><span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> Đang mở trình duyệt...</>
-                                ) : (
-                                    <>Kết nối TikTok Analytics</>
-                                )}
-                            </button>
+                                <option value="">-- Chọn tài khoản đồng bộ --</option>
+                                {accounts.map(acc => (
+                                    <option key={acc.id} value={acc.id}>[{acc.platform}] {acc.accountName}</option>
+                                ))}
+                            </select>
                         </div>
-                        {sessionResult && (
-                            <div style={{
-                                marginTop: "14px",
-                                padding: "10px 16px",
-                                borderRadius: "8px",
-                                fontSize: "13px",
-                                fontWeight: "500",
-                                background: sessionResult.status === "success" ? "#e6f9ee" : sessionResult.status === "error" ? "#fde8e8" : "#fff8e1",
-                                color: sessionResult.status === "success" ? "#1a7c3a" : sessionResult.status === "error" ? "#c0392b" : "#856404",
-                                border: `1px solid ${sessionResult.status === "success" ? "#a8d5b5" : sessionResult.status === "error" ? "#f0b8b8" : "#ffd56b"}`
-                            }}>
-                                {sessionResult.message}
-                            </div>
-                        )}
                     </section>
 
-                    <section className="panel" style={{ marginTop: "24px" }}>
+                    <section className="panel" style={{marginTop: "24px"}}>
                         <div className="table-wrap">
                             {loading ? (
-                                <div style={{ padding: "40px", textAlign: "center" }}>Đang tải danh sách jobs...</div>
+                                <div style={{padding: "40px", textAlign: "center"}}>Đang tải danh sách jobs...</div>
                             ) : jobs.length === 0 ? (
-                                <div style={{ padding: "40px", textAlign: "center" }}>Chưa có tiến trình đồng bộ nào.</div>
+                                <div style={{padding: "40px", textAlign: "center"}}>Chưa có tiến trình đồng bộ
+                                    nào.</div>
                             ) : (
                                 <table className="grid-table">
                                     <thead>
-                                        <tr>
-                                            <th>Mã Job</th>
-                                            <th>Loại Job</th>
-                                            <th>Trạng thái</th>
-                                            <th>Tiến độ</th>
-                                            <th>Đang scan tới đâu</th>
-                                            <th>Khoảng thời gian</th>
-                                            <th>Thời gian tạo</th>
-                                            <th>Hành động</th>
-                                        </tr>
+                                    <tr>
+                                        <th>Mã Job</th>
+                                        <th>Loại Job</th>
+                                        <th>Trạng thái</th>
+                                        <th>Tiến độ</th>
+                                        <th>Đang scan tới đâu</th>
+                                        <th>Khoảng thời gian</th>
+                                        <th>Thời gian tạo</th>
+                                        <th>Hành động</th>
+                                    </tr>
                                     </thead>
                                     <tbody>
-                                        {jobs.map((job) => {
-                                            const latestLog = getLatestLog(job);
-                                            const progress = getProgress(job);
-                                            const jobLogs = [...(job.logs || [])]
-                                                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                                                ;
+                                    {paginatedJobs.map((job) => {
+                                        const latestLog = getLatestLog(job);
+                                        const progress = getProgress(job);
+                                        const jobLogs = [...(job.logs || [])]
+                                            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                        ;
 
-                                            return (
+                                        return (
                                             <React.Fragment key={job.id}>
-                                            <tr>
-                                                <td className="center font-bold job-id-cell">{job.id}</td>
-                                                <td className="center">{job.jobType}</td>
-                                                <td className="center">
+                                                <tr>
+                                                    <td className="center font-bold job-id-cell">{job.id}</td>
+                                                    <td className="center">{job.jobType}</td>
+                                                    <td className="center">
                                                     <span className={`sync-status-pill ${job.status.toLowerCase()}`}>
                                                         {job.status}
                                                     </span>
-                                                </td>
-                                                <td className="center">
-                                                    <div className="sync-progress-cell">
-                                                        <div className="progress-bar-container">
-                                                            <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
-                                                        </div>
-                                                        <span className="progress-percent">{progress}%</span>
-                                                        <span className="progress-count">
+                                                    </td>
+                                                    <td className="center">
+                                                        <div className="sync-progress-cell">
+                                                            <div className="progress-bar-container">
+                                                                <div className="progress-bar-fill"
+                                                                     style={{width: `${progress}%`}}></div>
+                                                            </div>
+                                                            <span className="progress-percent">{progress}%</span>
+                                                            <span className="progress-count">
                                                             {job.totalItems ? `${job.processedItems || 0}/${job.totalItems}` : "Đang dò dữ liệu"}
                                                         </span>
-                                                    </div>
-                                                </td>
-                                                <td className="sync-log-summary">
-                                                    <div className={`sync-log-level ${(latestLog?.level || "INFO").toLowerCase()}`}>
-                                                        {latestLog?.level || "INFO"}
-                                                    </div>
-                                                    <div>
-                                                        <div className="sync-log-message">
-                                                            {latestLog?.message || "Đang chờ worker nhận job"}
-                                                        </div>
-                                                        {latestLog?.createdAt && (
-                                                            <div className="sync-log-time">
-                                                                {new Date(latestLog.createdAt).toLocaleString("vi-VN")}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="center">{new Date(job.dateFrom).toLocaleDateString("vi-VN")} → {new Date(job.dateTo).toLocaleDateString("vi-VN")}</td>
-                                                <td className="center">{new Date(job.createdAt).toLocaleString("vi-VN")}</td>
-                                                <td className="center">
-                                                    {(job.status === "RUNNING" || job.status === "QUEUED") && (
-                                                        <button className="btn-text small-btn" style={{ color: "var(--error)" }} onClick={() => handleCancel(job.id)}>Hủy</button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                            {jobLogs.length > 0 && (
-                                                <tr className="sync-log-row">
-                                                    <td colSpan="8">
-                                                        <div className="sync-log-list">
-                                                            {jobLogs.map((log) => (
-                                                                <div className="sync-log-item" key={log.id}>
-                                                                    <span className={`sync-log-dot ${(log.level || "INFO").toLowerCase()}`}></span>
-                                                                    <span className="sync-log-item-time">{new Date(log.createdAt).toLocaleTimeString("vi-VN")}</span>
-                                                                    <span className="sync-log-item-message">{log.message}</span>
-                                                                </div>
-                                                            ))}
                                                         </div>
                                                     </td>
+                                                    <td className="sync-log-summary">
+                                                        <div
+                                                            className={`sync-log-level ${(latestLog?.level || "INFO").toLowerCase()}`}>
+                                                            {latestLog?.level || "INFO"}
+                                                        </div>
+                                                        <div>
+                                                            <div className="sync-log-message">
+                                                                {latestLog?.message || "Đang chờ worker nhận job"}
+                                                            </div>
+                                                            {latestLog?.createdAt && (
+                                                                <div className="sync-log-time">
+                                                                    {new Date(latestLog.createdAt).toLocaleString("vi-VN")}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="center">{new Date(job.dateFrom).toLocaleDateString("vi-VN")} → {new Date(job.dateTo).toLocaleDateString("vi-VN")}</td>
+                                                    <td className="center">{new Date(job.createdAt).toLocaleString("vi-VN")}</td>
+                                                    <td className="center">
+                                                        {(job.status === "RUNNING" || job.status === "QUEUED") && (
+                                                            <button className="btn-text small-btn"
+                                                                    style={{color: "var(--error)"}}
+                                                                    onClick={() => handleCancel(job.id)}>Hủy</button>
+                                                        )}
+                                                    </td>
                                                 </tr>
-                                            )}
+                                                {jobLogs.length > 0 && (
+                                                    <tr className="sync-log-row">
+                                                        <td colSpan="8">
+                                                            <div className="sync-log-list">
+                                                                {jobLogs.map((log) => (
+                                                                    <div className="sync-log-item" key={log.id}>
+                                                                        <span
+                                                                            className={`sync-log-dot ${(log.level || "INFO").toLowerCase()}`}></span>
+                                                                        <span
+                                                                            className="sync-log-item-time">{new Date(log.createdAt).toLocaleTimeString("vi-VN")}</span>
+                                                                        <span
+                                                                            className="sync-log-item-message">{log.message}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </React.Fragment>
-                                            );
-                                        })}
+                                        );
+                                    })}
                                     </tbody>
                                 </table>
                             )}
                         </div>
+                        {jobs.length > 0 && (
+                            <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px"}}>
+                                <span style={{fontSize: "13px", color: "var(--ink-soft)"}}>
+                                    Trang {jobPage} / {totalJobPages} · {jobs.length} lượt đồng bộ
+                                </span>
+                                <div style={{display: "flex", gap: "8px"}}>
+                                    <button
+                                        className="btn-outline small-btn"
+                                        disabled={jobPage <= 1}
+                                        onClick={() => setJobPage((page) => page - 1)}
+                                    >
+                                        Trang trước
+                                    </button>
+                                    <button
+                                        className="btn-outline small-btn"
+                                        disabled={jobPage >= totalJobPages}
+                                        onClick={() => setJobPage((page) => page + 1)}
+                                    >
+                                        Trang sau
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </section>
                 </div>
             </main>
@@ -373,10 +353,11 @@ export default function SyncJobs({ onLogout }) {
                 <div className="modal-backdrop" onClick={() => setShowModal(false)}>
                     <div className="modal-card" onClick={(e) => e.stopPropagation()}>
                         <h2 className="modal-title">Tạo Lượt Đồng bộ Dữ liệu</h2>
-                        <form onSubmit={handleCreateSync} style={{ marginTop: "16px" }}>
+                        <form onSubmit={handleCreateSync} style={{marginTop: "16px"}}>
                             <div className="form-group">
                                 <label>Tài khoản kết nối</label>
-                                <select value={platformAccountId} onChange={(e) => setPlatformAccountId(e.target.value)}>
+                                <select value={platformAccountId}
+                                        onChange={(e) => setPlatformAccountId(e.target.value)}>
                                     {accounts.map(acc => (
                                         <option key={acc.id} value={acc.id}>
                                             [{acc.platform}] {acc.accountName}
@@ -386,18 +367,23 @@ export default function SyncJobs({ onLogout }) {
                             </div>
                             <div className="form-group">
                                 <label>Từ ngày</label>
-                                <input type="date" required value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                                <input type="date" required value={dateFrom}
+                                       onChange={(e) => setDateFrom(e.target.value)}/>
                             </div>
                             <div className="form-group">
                                 <label>Đến ngày</label>
-                                <input type="date" required value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                                <input type="date" required value={dateTo} onChange={(e) => setDateTo(e.target.value)}/>
                             </div>
-                            <div className="form-group" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <input type="checkbox" id="force" checked={forceRefresh} onChange={(e) => setForceRefresh(e.target.checked)} style={{ width: "auto" }} />
-                                <label htmlFor="force" style={{ margin: 0, fontWeight: "normal" }}>Ép buộc quét lại dữ liệu cũ (Force Refresh)</label>
+                            <div className="form-group" style={{display: "flex", alignItems: "center", gap: "8px"}}>
+                                <input type="checkbox" id="force" checked={forceRefresh}
+                                       onChange={(e) => setForceRefresh(e.target.checked)} style={{width: "auto"}}/>
+                                <label htmlFor="force" style={{margin: 0, fontWeight: "normal"}}>Ép buộc quét lại dữ
+                                    liệu cũ (Force Refresh)</label>
                             </div>
-                            <div className="modal-actions" style={{ marginTop: "24px" }}>
-                                <button type="button" className="modal-btn modal-btn-cancel" onClick={() => setShowModal(false)}>Hủy</button>
+                            <div className="modal-actions" style={{marginTop: "24px"}}>
+                                <button type="button" className="modal-btn modal-btn-cancel"
+                                        onClick={() => setShowModal(false)}>Hủy
+                                </button>
                                 <button type="submit" className="modal-btn modal-btn-confirm" disabled={submitting}>
                                     {submitting ? "Đang tạo..." : "Bắt đầu Đồng bộ"}
                                 </button>
@@ -413,7 +399,8 @@ export default function SyncJobs({ onLogout }) {
                         <h2 className="modal-title">Xác nhận đăng xuất</h2>
                         <p className="modal-desc">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống không?</p>
                         <div className="modal-actions">
-                            <button className="modal-btn modal-btn-cancel" onClick={() => setConfirmLogout(false)}>Hủy</button>
+                            <button className="modal-btn modal-btn-cancel" onClick={() => setConfirmLogout(false)}>Hủy
+                            </button>
                             <button className="modal-btn modal-btn-confirm" onClick={onLogout}>Đăng xuất</button>
                         </div>
                     </div>

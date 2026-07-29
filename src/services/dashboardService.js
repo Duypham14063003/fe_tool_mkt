@@ -8,3 +8,7 @@ import { apiGet } from "../lib/apiClient.js";
 export async function getDashboardSummary() {
     return apiGet("/dashboard/summary");
 }
+
+export async function getDashboardChannels() {
+    return apiGet("/dashboard/channels");
+}

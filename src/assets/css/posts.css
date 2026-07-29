@@ -60,3 +60,130 @@
     border-top: 1px solid var(--line);
     padding-top: 16px;
 }
+
+.video-kpi-result {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.video-kpi-result small {
+    color: var(--ink-soft);
+    font-size: 11px;
+}
+
+.video-kpi-badge {
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.video-kpi-badge.met {
+    background: #EAF4EC;
+    color: var(--success);
+}
+
+.video-kpi-badge.not-met {
+    background: #FDF2F2;
+    color: var(--error);
+}
+
+.import-history-modal {
+    width: min(1100px, calc(100vw - 32px));
+    max-width: 1100px;
+}
+
+.import-history-table {
+    max-height: 55vh;
+    overflow: auto;
+    margin-top: 18px;
+}
+
+.import-history-empty {
+    padding: 36px;
+    text-align: center;
+    color: var(--ink-soft);
+}
+
+.import-count-success,
+.import-count-skipped {
+    display: block;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.import-count-success {
+    color: var(--success);
+}
+
+.import-count-skipped {
+    color: var(--warning);
+    margin-top: 3px;
+}
+
+.import-delete-btn {
+    color: var(--error);
+    white-space: nowrap;
+}
+
+.current-import-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.current-import-banner span {
+    color: var(--ink-soft);
+    margin-left: auto;
+}
+
+.import-history-row {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.import-history-row:hover {
+    background: #FFF9E6;
+}
+
+.import-history-row.selected {
+    background: #F5EED8;
+}
+
+.caption-content {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+.caption-content.expanded {
+    display: block;
+    overflow: visible;
+}
+
+.caption-toggle {
+    margin-top: 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--gold-deep);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.caption-toggle:hover {
+    text-decoration: underline;
+}

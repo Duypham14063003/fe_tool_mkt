@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import "../assets/css/statistics.css";
 import "../assets/css/settings.css";
 import { getStoredUser } from "../services/authService";
-import { listKpis, createKpi, deleteKpi, calcAchievement, kpiStatus } from "../services/kpiService";
+import { listKpis, createKpi, deleteKpi } from "../services/kpiService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
 
 function BrandLogo({ className }) {
@@ -38,13 +38,6 @@ const IconGear = () => (
         <path d="M9 2.6v1.6M9 13.8v1.6M15.4 9h-1.6M4.2 9H2.6M13.2 4.8l-1.1 1.1M5.9 12.1l-1.1 1.1M13.2 13.2l-1.1-1.1M5.9 5.9 4.8 4.8" strokeLinecap="round" />
     </svg>
 );
-const IconHelp = () => (
-    <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="6.7" />
-        <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
-        <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
-    </svg>
-);
 const IconLogout = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M7 15.5H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h3" strokeLinecap="round" />
@@ -58,6 +51,14 @@ const NAV_ITEMS = [
     { icon: <IconGear />, label: "Cài đặt", to: "/settings" },
 ];
 
+function currentMonthPeriod() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = String(new Date(year, now.getMonth() + 1, 0).getDate()).padStart(2, "0");
+    return { start: `${year}-${month}-01`, end: `${year}-${month}-${lastDay}` };
+}
+
 export default function Settings({ onLogout }) {
     const location = useLocation();
     const [kpis, setKpis] = useState([]);
@@ -66,12 +67,13 @@ export default function Settings({ onLogout }) {
     const [confirmLogout, setConfirmLogout] = useState(false);
 
     // KPI Form
-    const [platform, setPlatform] = useState("FACEBOOK");
-    const [metricName, setMetricName] = useState("totalViews");
-    const [targetValue, setTargetValue] = useState(5000);
-    const [periodType, setPeriodType] = useState("MONTHLY");
-    const [periodStart, setPeriodStart] = useState("2026-07-01");
-    const [periodEnd, setPeriodEnd] = useState("2026-07-31");
+    const [platform, setPlatform] = useState("TIKTOK");
+    const [metricName, setMetricName] = useState("views");
+    const [targetValue, setTargetValue] = useState(300);
+    const periodType = "MONTHLY";
+    const initialPeriod = currentMonthPeriod();
+    const [periodStart, setPeriodStart] = useState(initialPeriod.start);
+    const [periodEnd, setPeriodEnd] = useState(initialPeriod.end);
     const [submitting, setSubmitting] = useState(false);
 
     const user = getStoredUser();
@@ -148,7 +150,6 @@ export default function Settings({ onLogout }) {
                 </nav>
 
                 <div className="sidebar-bottom">
-                    <a href="#" className="nav-item"><span className="nav-icon"><IconHelp /></span> Hỗ trợ</a>
                     <a href="#" className="nav-item" onClick={(e) => { e.preventDefault(); setConfirmLogout(true); }}><span className="nav-icon"><IconLogout /></span> Đăng xuất</a>
                 </div>
             </aside>
@@ -178,7 +179,7 @@ export default function Settings({ onLogout }) {
                     {/* KPI Panel */}
                     <section className="panel" style={{ marginTop: "24px" }}>
                         <div className="panel-header">
-                            <h2>Mục tiêu KPI Đã Thiết lập</h2>
+                            <h2>Lịch sử thiết lập KPI</h2>
                         </div>
                         <div className="table-wrap">
                             {loading ? (
@@ -191,21 +192,14 @@ export default function Settings({ onLogout }) {
                                         <tr>
                                             <th>Nền tảng</th>
                                             <th>Chỉ số</th>
-                                            <th>Chu kỳ</th>
                                             <th>Mục tiêu (Target)</th>
-                                            <th>Thực tế (Actual)</th>
-                                            <th>Tỷ lệ đạt (%)</th>
-                                            <th>Đánh giá</th>
+                                            <th>Thời gian áp dụng</th>
+                                            <th>Ngày thiết lập</th>
                                             <th>Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {kpis.map((k) => {
-                                            // Simulated actual value for visual demonstration
-                                            const actual = k.metricName === "engagementRate" ? 3.42 : 5101;
-                                            const rate = calcAchievement(actual, Number(k.targetValue));
-                                            const status = kpiStatus(rate);
-                                            return (
+                                        {kpis.map((k) => (
                                                 <tr key={k.id}>
                                                     <td className="center">
                                                         <span className={`account-platform-badge ${k.platform.toLowerCase()}`}>
@@ -213,21 +207,20 @@ export default function Settings({ onLogout }) {
                                                         </span>
                                                     </td>
                                                     <td className="center font-bold">{k.metricName}</td>
-                                                    <td className="center">{k.periodType} ({k.periodStart} → {k.periodEnd})</td>
                                                     <td className="center font-bold">{Number(k.targetValue).toLocaleString()}</td>
-                                                    <td className="center font-bold">{actual.toLocaleString()}</td>
-                                                    <td className="center font-bold" style={{ color: rate >= 100 ? "var(--success)" : "var(--error)" }}>{rate}%</td>
                                                     <td className="center">
-                                                        <span className={`kpi-status-badge ${status.toLowerCase()}`}>
-                                                            {status}
-                                                        </span>
+                                                        {new Date(k.periodStart).toLocaleDateString("vi-VN")}
+                                                        {" → "}
+                                                        {new Date(k.periodEnd).toLocaleDateString("vi-VN")}
+                                                    </td>
+                                                    <td className="center">
+                                                        {k.createdAt ? new Date(k.createdAt).toLocaleString("vi-VN") : "--"}
                                                     </td>
                                                     <td className="center">
                                                         <button className="btn-text small-btn" style={{ color: "var(--error)" }} onClick={() => handleDeleteKpi(k.id)}>Xóa</button>
                                                     </td>
                                                 </tr>
-                                            );
-                                        })}
+                                            ))}
                                     </tbody>
                                 </table>
                             )}
@@ -251,31 +244,23 @@ export default function Settings({ onLogout }) {
                             <div className="form-group">
                                 <label>Chỉ số cần đo lường (Metric)</label>
                                 <select value={metricName} onChange={(e) => setMetricName(e.target.value)}>
-                                    <option value="totalViews">Tổng lượt xem (totalViews)</option>
-                                    <option value="totalReach">Người tiếp cận (totalReach)</option>
+                                    <option value="views">Tổng lượt xem (views)</option>
+                                    <option value="reach">Người tiếp cận (reach)</option>
                                     <option value="reactions">Lượt thích/tương tác (reactions)</option>
                                     <option value="engagementRate">Tỷ lệ tương tác % (engagementRate)</option>
                                 </select>
                             </div>
                             <div className="form-group">
                                 <label>Giá trị mục tiêu (Target Value)</label>
-                                <input type="number" required value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
+                                <input type="number" min="0.01" step="any" required value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
                             </div>
                             <div className="form-group">
-                                <label>Loại chu kỳ</label>
-                                <select value={periodType} onChange={(e) => setPeriodType(e.target.value)}>
-                                    <option value="MONTHLY">Hàng tháng (MONTHLY)</option>
-                                    <option value="WEEKLY">Hàng tuần (WEEKLY)</option>
-                                    <option value="DAILY">Hàng ngày (DAILY)</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Ngày bắt đầu</label>
+                                <label>Ngày bắt đầu áp dụng</label>
                                 <input type="date" required value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
                             </div>
                             <div className="form-group">
-                                <label>Ngày kết thúc</label>
-                                <input type="date" required value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+                                <label>Ngày kết thúc áp dụng</label>
+                                <input type="date" min={periodStart} required value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
                             </div>
                             <div className="modal-actions" style={{ marginTop: "24px" }}>
                                 <button type="button" className="modal-btn modal-btn-cancel" onClick={() => setShowModal(false)}>Hủy</button>
