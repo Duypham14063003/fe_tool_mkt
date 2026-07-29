@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
+import * as XLSX from "xlsx";
 import "../assets/css/statistics.css";
 import "../assets/css/posts.css";
 import { getStoredUser } from "../services/authService";
-import { listPosts, getMetricHistory } from "../services/postsService";
+import { deleteImportBatch, getMetricHistory, importFacebookPosts, listImportBatches, listPosts } from "../services/postsService";
 import { listAccounts } from "../services/platformAccountService";
 import { exportReportConnected } from "../services/reportService";
 import logoImg from "../assets/img/logo19tDigital.jpg";
@@ -12,6 +13,38 @@ function BrandLogo({ className }) {
     const [broken, setBroken] = useState(false);
     if (broken) return <div className={`${className} logo-fallback`}>19T</div>;
     return <img src={logoImg} alt="19T Digital Logo" className={className} onError={() => setBroken(true)} />;
+}
+
+function ExpandableCaption({ text }) {
+    const contentRef = useRef(null);
+    const [expanded, setExpanded] = useState(false);
+    const [overflowing, setOverflowing] = useState(false);
+
+    useEffect(() => {
+        if (!expanded && contentRef.current) {
+            setOverflowing(contentRef.current.scrollHeight > contentRef.current.clientHeight + 1);
+        }
+    }, [text, expanded]);
+
+    return (
+        <div className="expandable-caption">
+            <div ref={contentRef} className={expanded ? "caption-content expanded" : "caption-content"}>
+                {text || "(Không có caption)"}
+            </div>
+            {(overflowing || expanded) && (
+                <button
+                    type="button"
+                    className="caption-toggle"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        setExpanded((value) => !value);
+                    }}
+                >
+                    {expanded ? "Thu gọn" : "Xem thêm"}
+                </button>
+            )}
+        </div>
+    );
 }
 
 const IconExcel = () => (
@@ -50,13 +83,6 @@ const IconGear = () => (
     <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <circle cx="9" cy="9" r="2.6" />
         <path d="M9 2.6v1.6M9 13.8v1.6M15.4 9h-1.6M4.2 9H2.6M13.2 4.8l-1.1 1.1M5.9 12.1l-1.1 1.1M13.2 13.2l-1.1-1.1M5.9 5.9 4.8 4.8" strokeLinecap="round" />
-    </svg>
-);
-const IconHelp = () => (
-    <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="9" cy="9" r="6.7" />
-        <path d="M7 7c0-1.2 1-2 2-2s2 .7 2 1.8c0 1.3-2 1.4-2 3.2" strokeLinecap="round" />
-        <circle cx="9" cy="12.6" r="0.15" fill="currentColor" />
     </svg>
 );
 const IconLogout = () => (
@@ -120,22 +146,21 @@ export default function Posts({ onLogout }) {
     // Tài khoản
     const [accounts, setAccounts] = useState([]);
     const [selectedAccountId, setSelectedAccountId] = useState("");
-
-    // Đang nhập trong input ngày
     const [tempDateFrom, setTempDateFrom] = useState("");
     const [tempDateTo, setTempDateTo] = useState("");
-
-    // Ngày thực tế đã bấm Nút Lọc
     const [appliedDateFrom, setAppliedDateFrom] = useState("");
     const [appliedDateTo, setAppliedDateTo] = useState("");
-    
-    // Nút preset đang chọn ("all", "this_month", "last_month", "custom")
     const [activePreset, setActivePreset] = useState("all");
-    
+
     const [loading, setLoading] = useState(true);
     const [selectedPost, setSelectedPost] = useState(null);
     const [history, setHistory] = useState([]);
     const [confirmLogout, setConfirmLogout] = useState(false);
+    const facebookImportRef = useRef(null);
+    const [importing, setImporting] = useState(false);
+    const [importBatches, setImportBatches] = useState([]);
+    const [showImportHistory, setShowImportHistory] = useState(false);
+    const [selectedImportBatchId, setSelectedImportBatchId] = useState("");
 
     useEffect(() => {
         listAccounts()
@@ -143,22 +168,40 @@ export default function Posts({ onLogout }) {
             .catch(err => console.error("Error loading accounts:", err));
     }, []);
 
+    const fetchImportBatches = async (selectLatest = false) => {
+        try {
+            const batches = await listImportBatches();
+            setImportBatches(batches || []);
+            if (selectLatest && batches?.length) setSelectedImportBatchId(batches[0].id);
+            return batches || [];
+        } catch (error) {
+            console.error("Error loading import history:", error);
+            return [];
+        }
+    };
+
+    useEffect(() => {
+        fetchImportBatches(true);
+    }, []);
+
     useEffect(() => {
         setSelectedAccountId("");
     }, [platformFilter]);
 
-    const fetchPosts = (page = 1) => {
+    const fetchPosts = (page = 1, importBatchId = selectedImportBatchId) => {
         setLoading(true);
-        const params = { page, limit: 100 };
+        const pageSize = platformFilter === "FACEBOOK" ? 8 : 100;
+        const params = { page, limit: pageSize };
         if (platformFilter) params.platform = platformFilter;
         if (selectedAccountId) params.platformAccountId = selectedAccountId;
-        if (appliedDateFrom) params.dateFrom = appliedDateFrom;
-        if (appliedDateTo) params.dateTo = appliedDateTo;
+        if (platformFilter === "FACEBOOK" && importBatchId) params.importBatchId = importBatchId;
+        if (platformFilter === "TIKTOK" && appliedDateFrom) params.dateFrom = appliedDateFrom;
+        if (platformFilter === "TIKTOK" && appliedDateTo) params.dateTo = appliedDateTo;
 
         listPosts(params)
             .then((res) => {
                 setPosts(res.data || []);
-                setMeta(res.meta || { page: 1, limit: 100, totalPages: 1 });
+                setMeta(res.meta || { page: 1, limit: pageSize, totalPages: 1 });
                 setLoading(false);
             })
             .catch((err) => {
@@ -169,40 +212,138 @@ export default function Posts({ onLogout }) {
 
     useEffect(() => {
         fetchPosts(1);
-    }, [platformFilter, selectedAccountId, appliedDateFrom, appliedDateTo]);
+    }, [platformFilter, selectedAccountId, selectedImportBatchId, appliedDateFrom, appliedDateTo]);
 
-    // Bấm nút Chọn Khoảng Nhanh
     const handleQuickRange = (type) => {
         setActivePreset(type);
         const today = new Date();
         let from = "";
         let to = "";
-
         if (type === "this_month") {
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            from = firstDay.toISOString().split("T")[0];
+            from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
             to = today.toISOString().split("T")[0];
         } else if (type === "last_month") {
-            const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
-            from = firstDay.toISOString().split("T")[0];
-            to = lastDay.toISOString().split("T")[0];
-        } else if (type === "all") {
-            from = "";
-            to = "";
+            from = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().split("T")[0];
+            to = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split("T")[0];
         }
-
         setTempDateFrom(from);
         setTempDateTo(to);
         setAppliedDateFrom(from);
         setAppliedDateTo(to);
     };
 
-    // Bấm Nút Lọc Dữ Liệu
     const handleApplyFilter = () => {
         setActivePreset("custom");
         setAppliedDateFrom(tempDateFrom);
         setAppliedDateTo(tempDateTo);
+    };
+
+    const handleFacebookImport = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!selectedAccountId) {
+            alert("Vui lòng chọn một tài khoản Facebook trước khi import.");
+            event.target.value = "";
+            return;
+        }
+        setImporting(true);
+        try {
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+            const worksheet = workbook.Sheets.Facebook || workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true });
+            const isFacebookInsights = rows.some((row) => "ID bài viết" in row && "Thời gian đăng" in row);
+            const pick = (row, ...keys) => {
+                for (const key of keys) {
+                    if (row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
+                }
+                return null;
+            };
+            const numberValue = (value) => {
+                const normalized = String(value ?? "").replace(/[,.](?=\d{3}\b)/g, "").replace(/[^\d.-]/g, "");
+                if (!normalized) return null;
+                const parsed = Number(normalized);
+                return Number.isFinite(parsed) ? parsed : null;
+            };
+            const dateValue = (value) => {
+                if (typeof value === "number") {
+                    const excelDate = XLSX.SSF.parse_date_code(value);
+                    if (excelDate) {
+                        return new Date(excelDate.y, excelDate.m - 1, excelDate.d, excelDate.H, excelDate.M, excelDate.S).toISOString();
+                    }
+                }
+                const match = String(value ?? "").match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+                if (match) {
+                    const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+                    const month = isFacebookInsights ? match[1] : match[2];
+                    const day = isFacebookInsights ? match[2] : match[1];
+                    return new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${(match[4] || "00").padStart(2, "0")}:${match[5] || "00"}:00`).toISOString();
+                }
+                const parsed = new Date(value);
+                return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+            };
+            const importedRows = rows
+                .filter((row) => String(row.STT).toUpperCase() !== "TỔNG")
+                .filter((row) => pick(row, "ID bài viết", "Caption", "Tiêu đề", "Ngày đăng", "Thời gian đăng"))
+                .map((row) => {
+                    const contentType = pick(row, "Loại bài viết", "Loại");
+                    const totalWatchTimeSeconds = numberValue(pick(row, "Số Giây xem", "Tổng thời gian phát"));
+                    return {
+                        externalPostId: String(pick(row, "ID bài viết", "Post ID") || ""),
+                        contentType: /video|thước phim|reel/i.test(String(contentType)) ? "VIDEO" : String(contentType || "Ảnh"),
+                        caption: String(pick(row, "Tiêu đề", "Caption") || ""),
+                        publishedAt: dateValue(pick(row, "Thời gian đăng", "Ngày đăng", "Ngày")),
+                        postUrl: pick(row, "Liên kết vĩnh viễn", "Link bài viết"),
+                        durationSeconds: numberValue(pick(row, "Thời lượng (giây)", "Thời lượng")),
+                        reach: numberValue(pick(row, "Reach", "Lượt hiển thị")),
+                        views: numberValue(pick(row, "Lượt xem")),
+                        interactions: numberValue(pick(row, "Tương tác")),
+                        reactions: numberValue(pick(row, "Cảm xúc")),
+                        comments: numberValue(pick(row, "Bình luận")),
+                        shares: numberValue(pick(row, "Lượt chia sẻ", "Chia sẻ")),
+                        saves: numberValue(pick(row, "Lượt lưu", "Lưu")),
+                        viewers: numberValue(pick(row, "Người xem")),
+                        view3Seconds: numberValue(pick(row, "Xem từ 3s")),
+                        view1Minute: numberValue(pick(row, "Xem từ 1 phút")),
+                        averageWatchTimeSeconds: numberValue(pick(row, "Số Giây xem trung bình", "Thời gian xem TB")),
+                        totalWatchTimeSeconds,
+                    };
+                });
+            if (!importedRows.length) throw new Error("Không tìm thấy dòng dữ liệu Facebook hợp lệ");
+            const result = await importFacebookPosts({
+                platformAccountId: selectedAccountId,
+                fileName: file.name,
+                rows: importedRows,
+            });
+            setSelectedImportBatchId(result.id);
+            fetchPosts(1, result.id);
+            fetchImportBatches();
+            alert(`Import hoàn tất: đã lưu ${result.importedRows} dòng từ ${file.name}.`);
+        } catch (error) {
+            alert(`Không thể import file: ${error.message}`);
+        } finally {
+            setImporting(false);
+            event.target.value = "";
+        }
+    };
+
+    const handleDeleteImport = async (batch) => {
+        if (!window.confirm(`Xóa đợt import "${batch.fileName}" và toàn bộ ${batch.importedRows} bài đã nhập?`)) return;
+        try {
+            await deleteImportBatch(batch.id);
+            const batches = await fetchImportBatches();
+            const nextBatchId = batch.id === selectedImportBatchId ? (batches[0]?.id || "") : selectedImportBatchId;
+            setSelectedImportBatchId(nextBatchId);
+            fetchPosts(1, nextBatchId);
+        } catch (error) {
+            alert(`Không thể xóa đợt import: ${error.message}`);
+        }
+    };
+
+    const handleViewImport = (batch) => {
+        setPlatformFilter("FACEBOOK");
+        setSelectedAccountId(batch.platformAccountId);
+        setSelectedImportBatchId(batch.id);
+        setShowImportHistory(false);
     };
 
     const handleSelectPost = (post) => {
@@ -210,13 +351,7 @@ export default function Posts({ onLogout }) {
         getMetricHistory(post.id).then(setHistory).catch(() => setHistory([]));
     };
 
-    // Lọc theo ngày áp dụng
-    const filteredPosts = posts.filter(p => {
-        const postDate = new Date(p.publishedAt);
-        const matchesFrom = !appliedDateFrom || postDate >= new Date(appliedDateFrom);
-        const matchesTo = !appliedDateTo || postDate <= new Date(appliedDateTo + "T23:59:59");
-        return matchesFrom && matchesTo;
-    });
+    const filteredPosts = posts;
 
     // Tính toán hàng tổng cộng (Total Row)
     const calcTotals = () => {
@@ -251,13 +386,17 @@ export default function Posts({ onLogout }) {
             totals.newFollowers += Number(m.newFollowers) || 0;
 
             const reactions = Number(m.reactions) || Number(m.likes) || 0;
-            totals.interactions += reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
+            const calculatedInteractions = reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
+            totals.interactions += m.rawData?.importedInteractions != null
+                ? Number(m.rawData.importedInteractions)
+                : calculatedInteractions;
         });
 
         return totals;
     };
 
     const totals = calcTotals();
+    const currentImportBatch = importBatches.find((batch) => batch.id === selectedImportBatchId);
 
     return (
         <div className="app">
@@ -282,7 +421,6 @@ export default function Posts({ onLogout }) {
                 </nav>
 
                 <div className="sidebar-bottom">
-                    <a href="#" className="nav-item"><span className="nav-icon"><IconHelp /></span> Hỗ trợ</a>
                     <a href="#" className="nav-item" onClick={(e) => { e.preventDefault(); setConfirmLogout(true); }}><span className="nav-icon"><IconLogout /></span> Đăng xuất</a>
                 </div>
             </aside>
@@ -303,8 +441,8 @@ export default function Posts({ onLogout }) {
                                     posts: filteredPosts,
                                     totals,
                                     platform: platformFilter || "ALL",
-                                    dateFrom: appliedDateFrom,
-                                    dateTo: appliedDateTo,
+                                    dateFrom: platformFilter === "TIKTOK" ? appliedDateFrom : "",
+                                    dateTo: platformFilter === "TIKTOK" ? appliedDateTo : "",
                                     format: "XLSX"
                                 })}
                                 style={{
@@ -331,8 +469,8 @@ export default function Posts({ onLogout }) {
                                     posts: filteredPosts,
                                     totals,
                                     platform: platformFilter || "ALL",
-                                    dateFrom: appliedDateFrom,
-                                    dateTo: appliedDateTo,
+                                    dateFrom: platformFilter === "TIKTOK" ? appliedDateFrom : "",
+                                    dateTo: platformFilter === "TIKTOK" ? appliedDateTo : "",
                                     format: "PDF",
                                     tableRef: document.querySelector(".table-wrap") || document.querySelector(".grid-table")
                                 })}
@@ -357,7 +495,7 @@ export default function Posts({ onLogout }) {
                         </div>
                     </div>
 
-                    {/* Thanh Bộ Lọc & Ngày tháng */}
+                    {/* Thanh nền tảng, tài khoản và import */}
                     <div className="posts-filter-bar" style={{ marginTop: "24px", flexDirection: "column", alignItems: "stretch", gap: "16px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
                             {/* Tabs Nền Tảng & Chọn Tài Khoản */}
@@ -376,13 +514,6 @@ export default function Posts({ onLogout }) {
                                         style={platformFilter === "TIKTOK" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
                                     >
                                         TikTok
-                                    </button>
-                                    <button
-                                        className={`tab${platformFilter === "" ? " active" : ""}`}
-                                        onClick={() => setPlatformFilter("")}
-                                        style={platformFilter === "" ? { background: "var(--gold)", color: "#111", fontWeight: "bold" } : {}}
-                                    >
-                                        Tất cả
                                     </button>
                                 </div>
 
@@ -406,72 +537,103 @@ export default function Posts({ onLogout }) {
                                 </div>
                             </div>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)", padding: "10px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)", flexWrap: "wrap" }}>
-                                <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink-soft)" }}>Chọn ngày:</span>
-                                <input
-                                    type="date"
-                                    value={tempDateFrom}
-                                    onChange={(e) => setTempDateFrom(e.target.value)}
-                                    style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
-                                />
-                                <span style={{ color: "var(--ink-soft)" }}>đến</span>
-                                <input
-                                    type="date"
-                                    value={tempDateTo}
-                                    onChange={(e) => setTempDateTo(e.target.value)}
-                                    style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
-                                />
-
-                                {/* Nút Lọc Dữ Liệu nổi bật */}
-                                <button
-                                    onClick={handleApplyFilter}
-                                    style={{
-                                        background: "var(--gold-deep)",
-                                        color: "#fff",
-                                        fontWeight: "600",
-                                        padding: "6px 16px",
-                                        borderRadius: "6px",
-                                        border: "none",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-                                    }}
-                                >
-                                    Lọc
-                                </button>
-
-                                <div style={{ height: "20px", width: "1px", background: "var(--line)", margin: "0 4px" }} />
-                                <button
-                                    className="btn-outline small-btn"
-                                    onClick={() => handleQuickRange("this_month")}
-                                    style={activePreset === "this_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
-                                >
-                                    Tháng này
-                                </button>
-                                <button
-                                    className="btn-outline small-btn"
-                                    onClick={() => handleQuickRange("last_month")}
-                                    style={activePreset === "last_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
-                                >
-                                    Tháng trước
-                                </button>
-                                <button
-                                    className="btn-outline small-btn"
-                                    onClick={() => handleQuickRange("all")}
-                                    style={activePreset === "all" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
-                                >
-                                    Tất cả
-                                </button>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                            {platformFilter === "TIKTOK" && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)", padding: "10px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)", flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink-soft)" }}>Chọn ngày:</span>
+                                    <input
+                                        type="date"
+                                        value={tempDateFrom}
+                                        onChange={(e) => setTempDateFrom(e.target.value)}
+                                        style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
+                                    />
+                                    <span style={{ color: "var(--ink-soft)" }}>đến</span>
+                                    <input
+                                        type="date"
+                                        value={tempDateTo}
+                                        onChange={(e) => setTempDateTo(e.target.value)}
+                                        style={{ border: "1px solid var(--line)", padding: "6px 10px", borderRadius: "6px", fontSize: "13px" }}
+                                    />
+                                    <button className="btn-primary small-btn" onClick={handleApplyFilter}>Lọc</button>
+                                    <div style={{ height: "20px", width: "1px", background: "var(--line)", margin: "0 4px" }} />
+                                    <button
+                                        className="btn-outline small-btn"
+                                        onClick={() => handleQuickRange("this_month")}
+                                        style={activePreset === "this_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                    >
+                                        Tháng này
+                                    </button>
+                                    <button
+                                        className="btn-outline small-btn"
+                                        onClick={() => handleQuickRange("last_month")}
+                                        style={activePreset === "last_month" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                    >
+                                        Tháng trước
+                                    </button>
+                                    <button
+                                        className="btn-outline small-btn"
+                                        onClick={() => handleQuickRange("all")}
+                                        style={activePreset === "all" ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)", fontWeight: "bold" } : {}}
+                                    >
+                                        Tất cả
+                                    </button>
+                                </div>
+                            )}
+                            {platformFilter === "FACEBOOK" && (
+                                <>
+                                    <input
+                                        ref={facebookImportRef}
+                                        type="file"
+                                        accept=".xlsx,.xls,.csv"
+                                        onChange={handleFacebookImport}
+                                        hidden
+                                    />
+                                    <button
+                                        className="btn-outline small-btn"
+                                        onClick={() => facebookImportRef.current?.click()}
+                                        disabled={importing}
+                                        title="Import dữ liệu Facebook từ Excel hoặc CSV"
+                                        style={{
+                                            alignSelf: "stretch",
+                                            padding: "10px 16px",
+                                            background: "var(--panel)",
+                                            borderRadius: "var(--radius-md)",
+                                            fontWeight: "600"
+                                        }}
+                                    >
+                                        {importing ? "Đang import..." : "Import file"}
+                                    </button>
+                                    <button
+                                        className="btn-outline small-btn"
+                                        onClick={() => { fetchImportBatches(); setShowImportHistory(true); }}
+                                        style={{
+                                            alignSelf: "stretch",
+                                            padding: "10px 16px",
+                                            background: "var(--panel)",
+                                            borderRadius: "var(--radius-md)",
+                                            fontWeight: "600"
+                                        }}
+                                    >
+                                        Lịch sử import
+                                    </button>
+                                </>
+                            )}
                             </div>
                         </div>
                     </div>
 
                     <section className="panel" style={{ overflowX: "auto", marginTop: "16px" }}>
+                        {platformFilter === "FACEBOOK" && currentImportBatch && (
+                            <div className="current-import-banner">
+                                Đang xem đợt import: <strong>{currentImportBatch.fileName}</strong>
+                                <span>{new Date(currentImportBatch.createdAt).toLocaleString("vi-VN")}</span>
+                            </div>
+                        )}
                         <div className="table-wrap">
                             {loading ? (
                                 <div style={{ padding: "40px", textAlign: "center" }}>Đang tải dữ liệu bài viết...</div>
                             ) : filteredPosts.length === 0 ? (
-                                <div style={{ padding: "40px", textAlign: "center" }}>Không tìm thấy dữ liệu nào trong khoảng thời gian này.</div>
+                                <div style={{ padding: "40px", textAlign: "center" }}>Không có dữ liệu để hiển thị.</div>
                             ) : platformFilter === "FACEBOOK" ? (
                                 /* BẢNG CHUẨN FACEBOOK */
                                 <table className="grid-table">
@@ -492,15 +654,21 @@ export default function Posts({ onLogout }) {
                                         {filteredPosts.map((post, idx) => {
                                             const m = post.metrics?.[0] || {};
                                             const reactions = Number(m.reactions) || Number(m.likes) || 0;
-                                            const totalInter = reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
-                                            const contentTypeText = post.contentType === "VIDEO" ? "Video" : "Ảnh";
+                                            const calculatedInteractions = reactions + (Number(m.comments) || 0) + (Number(m.shares) || 0);
+                                            const totalInter = m.rawData?.importedInteractions != null
+                                                ? Number(m.rawData.importedInteractions)
+                                                : calculatedInteractions;
+                                            const isVideo = ["VIDEO", "THƯỚC PHIM", "REEL", "REELS"].includes(post.contentType?.toUpperCase());
+                                            const contentTypeText = isVideo ? "Video" : "Ảnh";
 
                                             return (
                                                 <tr key={post.id}>
-                                                    <td className="center font-bold">{idx + 1}</td>
+                                                    <td className="center font-bold">{(meta.page - 1) * meta.limit + idx + 1}</td>
                                                     <td className="center">{new Date(post.publishedAt).toLocaleDateString("vi-VN")}</td>
                                                     <td className="center">{contentTypeText}</td>
-                                                    <td className="left caption-cell" style={{ maxWidth: "260px" }}>{post.caption || "(Không có caption)"}</td>
+                                                    <td className="left caption-cell" style={{ maxWidth: "320px" }}>
+                                                        <ExpandableCaption text={post.caption} />
+                                                    </td>
                                                     <td className="center font-bold">{m.reach ? Number(m.reach).toLocaleString() : "--"}</td>
                                                     <td className="center font-bold">{m.views ? Number(m.views).toLocaleString() : "--"}</td>
                                                     <td className="center font-bold">{totalInter ? totalInter.toLocaleString() : "0"}</td>
@@ -546,12 +714,14 @@ export default function Posts({ onLogout }) {
                                             <th className="center">Nữ</th>
                                             <th className="center">Độ tuổi chính</th>
                                             <th className="center">Khu vực chính</th>
+                                            <th className="center">Đánh giá KPI</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredPosts.map((post, idx) => {
                                             const m = post.metrics?.[0] || {};
                                             const raw = m.rawData || {};
+                                            const kpi = post.videoReachKpi;
 
                                             return (
                                                 <tr key={post.id}>
@@ -575,6 +745,16 @@ export default function Posts({ onLogout }) {
                                                     <td className="center">{m.femaleRate != null ? `${Number(m.femaleRate).toFixed(1)}%` : "--"}</td>
                                                     <td className="center">{m.mainAgeGroup || "--"}</td>
                                                     <td className="center">{m.mainLocation || "--"}</td>
+                                                    <td className="center">
+                                                        {kpi?.status ? (
+                                                            <div className="video-kpi-result">
+                                                                <span className={`video-kpi-badge ${kpi.status === "MET" ? "met" : "not-met"}`}>
+                                                                    {kpi.status === "MET" ? "Đạt" : "Chưa đạt"}
+                                                                </span>
+                                                                <small>{Number(kpi.actual).toLocaleString()} / {Number(kpi.target).toLocaleString()} lượt xem</small>
+                                                            </div>
+                                                        ) : "--"}
+                                                    </td>
                                                 </tr>
                                             );
                                         })}
@@ -592,7 +772,7 @@ export default function Posts({ onLogout }) {
                                             <td className="center">--</td>
                                             <td className="center">--</td>
                                             <td className="center">{totals.newFollowers}</td>
-                                            <td colSpan={7} className="center">--</td>
+                                            <td colSpan={8} className="center">--</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -659,6 +839,71 @@ export default function Posts({ onLogout }) {
                     </section>
                 </div>
             </main>
+
+            {showImportHistory && (
+                <div className="modal-backdrop" onClick={() => setShowImportHistory(false)}>
+                    <div className="modal-card import-history-modal" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="modal-title">Lịch sử import Facebook</h2>
+                        <p className="modal-desc">Mỗi file được lưu thành một đợt riêng. Xóa đợt sẽ hoàn tác các bài đã nhập từ file đó.</p>
+                        <div className="table-wrap import-history-table">
+                            {importBatches.length === 0 ? (
+                                <div className="import-history-empty">Chưa có đợt import nào.</div>
+                            ) : (
+                                <table className="grid-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Thời gian</th>
+                                            <th>File</th>
+                                            <th>Tài khoản</th>
+                                            <th>Dữ liệu</th>
+                                            <th>Kết quả</th>
+                                            <th>Người import</th>
+                                            <th>Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {importBatches.map((batch) => (
+                                            <tr
+                                                key={batch.id}
+                                                className={`import-history-row${batch.id === selectedImportBatchId ? " selected" : ""}`}
+                                                onClick={() => handleViewImport(batch)}
+                                                title="Nhấn để xem dữ liệu của đợt import này"
+                                            >
+                                                <td className="center">{new Date(batch.createdAt).toLocaleString("vi-VN")}</td>
+                                                <td className="left font-bold">{batch.fileName}</td>
+                                                <td className="center">{batch.platformAccount?.accountName || "--"}</td>
+                                                <td className="center">
+                                                    {batch.dateFrom && batch.dateTo
+                                                        ? `${new Date(batch.dateFrom).toLocaleDateString("vi-VN")} → ${new Date(batch.dateTo).toLocaleDateString("vi-VN")}`
+                                                        : "--"}
+                                                </td>
+                                                <td className="center">
+                                                    <span className="import-count-success">{batch.importedRows} mới</span>
+                                                </td>
+                                                <td className="center">{batch.user?.name || batch.user?.email || "--"}</td>
+                                                <td className="center">
+                                                    <button
+                                                        className="btn-text small-btn import-delete-btn"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleDeleteImport(batch);
+                                                        }}
+                                                    >
+                                                        Xóa đợt
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        <div className="modal-actions">
+                            <button className="modal-btn modal-btn-cancel" onClick={() => setShowImportHistory(false)}>Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Post Detail Modal */}
             {selectedPost && (
