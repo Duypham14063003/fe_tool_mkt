@@ -61,6 +61,36 @@ const NAV_ITEMS = [
     { icon: <IconGear />, label: "Cài đặt", to: "/settings" },
 ];
 
+function deduplicateAccounts(accounts) {
+    const uniqueAccounts = new Map();
+
+    for (const account of accounts) {
+        const externalId = String(account.externalAccountId || "").trim().toLowerCase();
+        const accountName = String(account.accountName || "").trim().toLowerCase();
+        const identity = externalId || accountName || String(account.id);
+        const key = `${String(account.platform || "").toUpperCase()}:${identity}`;
+        const current = uniqueAccounts.get(key);
+
+        if (!current) {
+            uniqueAccounts.set(key, account);
+            continue;
+        }
+
+        const currentIsImport = /\(import\)\s*$/i.test(current.accountName || "");
+        const candidateIsImport = /\(import\)\s*$/i.test(account.accountName || "");
+        if (currentIsImport !== candidateIsImport) {
+            if (!candidateIsImport) uniqueAccounts.set(key, account);
+            continue;
+        }
+
+        const currentTime = Date.parse(current.updatedAt || current.createdAt || "") || 0;
+        const candidateTime = Date.parse(account.updatedAt || account.createdAt || "") || 0;
+        if (candidateTime > currentTime) uniqueAccounts.set(key, account);
+    }
+
+    return Array.from(uniqueAccounts.values());
+}
+
 export default function PlatformAccounts({ onLogout }) {
     const location = useLocation();
     const [accounts, setAccounts] = useState([]);
@@ -81,6 +111,7 @@ export default function PlatformAccounts({ onLogout }) {
     const [renaming, setRenaming] = useState(false);
 
     const user = getStoredUser();
+    const visibleAccounts = deduplicateAccounts(accounts);
 
     const fetchAccounts = async () => {
         setLoading(true);
@@ -295,11 +326,11 @@ export default function PlatformAccounts({ onLogout }) {
 
                     {loading ? (
                         <div style={{ padding: "40px", textAlign: "center" }}>Đang tải danh sách tài khoản...</div>
-                    ) : accounts.length === 0 ? (
+                    ) : visibleAccounts.length === 0 ? (
                         <div style={{ padding: "40px", textAlign: "center", color: "var(--ink-soft)" }}>Chưa có tài khoản nào được kết nối.</div>
                     ) : (
                         <div className="accounts-grid">
-                            {accounts.map((acc) => (
+                            {visibleAccounts.map((acc) => (
                                 <div className="account-card" key={acc.id}>
                                     <div>
                                         <div className="account-card-header">
